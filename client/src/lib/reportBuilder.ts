@@ -1026,39 +1026,11 @@ export function buildFullReport(
     <!-- ═══ PILLAR IV : BACKLOG HEALTH ═══ -->
     ${pillar("IV", "Backlog Health", "#009add", "Pipeline readiness, grooming, and stale items.", backlogScore)}
 
-    ${metric("Stage Distribution", `${totalOpenItems} open items across all workflow stages.`)}
-    ${stageMap.size > 0 ? (() => {
-      const SC: Record<string, string> = {
-        "backlog": "#94a3b8", "new": "#94a3b8", "open": "#94a3b8", "to do": "#94a3b8",
-        "discovery": "#059669", "investigation": "#059669", "research": "#059669",
-        "in design": "#8b5cf6", "design": "#8b5cf6",
-        "groomed": "#06b6d4", "refined": "#06b6d4", "grooming": "#06b6d4",
-        "ready for development": "#16a34a", "ready for dev": "#16a34a", "ready": "#16a34a", "selected for development": "#16a34a",
-        "in progress": "#009add", "in development": "#009add", "developing": "#009add",
-        "in review": "#a855f7", "code review": "#a855f7", "peer review": "#a855f7",
-        "in testing": "#f59e0b", "qa": "#f59e0b", "testing": "#f59e0b",
-        "blocked": "#dc2626",
-      };
-      const gc = (s: string) => SC[s.toLowerCase()] || "#64748b";
-      const sorted = [...stageMap.entries()].sort((a, b) => b[1] - a[1]);
-      const cards = sorted.map(([status, count]) => {
-        const ai = stageAgingMap.get(status) || 0;
-        return stageCard(status, count, gc(status), ai > 0 ? ai + " aging" : undefined);
-      });
-      while (cards.length % 4 !== 0) cards.push('<td style="width:25%;padding:0 4px;"></td>');
-      const trs: string[] = [];
-      for (let i = 0; i < cards.length; i += 4) {
-        trs.push("<tr>" + cards.slice(i, i + 4).join("") + "</tr>");
-      }
-      return '<table style="border-collapse:separate;border-spacing:6px 6px;width:100%;table-layout:fixed;margin:8px 0;">' + trs.join("") + "</table>";
-    })() : `<table style="border-collapse:separate;border-spacing:6px 0;width:100%;table-layout:fixed;margin:8px 0;">
-      <tr>
-      ${stageCard("Ready for Dev", readyCount, "#16a34a", readyCount < 5 ? "Low" : readyCount >= 15 ? "Healthy" : undefined)}
-      ${stageCard("In Progress", wipCount, "#009add")}
-      ${stageCard("Blocked", blockedCount, "#dc2626", blockedCount > 0 ? "Action needed" : undefined)}
-      ${stageCard("Discovery", discoveryCount, "#059669", discoveryCount > 0 ? "Completed" : "None")}
-      </tr>
-    </table>`}
+    ${metric("Development Pipeline", `${devStageTotal} items in active development stages.`)}
+    ${renderStageGroup(devStageEntries)}
+
+    ${metric("Planning Pipeline", `${planningStageTotal} items in planning and discovery stages.`)}
+    ${renderStageGroup(planningStageEntries)}
 
     ${metric("Backlog Readiness", `${readyCount} groomed items ready to pull.`)}
     ${backlog && backlog.issueCount > 0 ? (() => {
