@@ -13,7 +13,9 @@ const FIELDS = [
   "labels",
   "components",
   "fixVersions",
-  "customfield_10016", // Story Points
+  "customfield_10016", // Story point estimate (unused on this instance)
+  "customfield_10028", // Estimated Story Points
+  "customfield_10533", // Actual Story Points
   "customfield_10020", // Sprint
   "customfield_10014", // Epic Link
   "resolution",
@@ -135,7 +137,10 @@ export function flattenIssue(issue: any, queryLabel: string): CsvRow {
     Reporter: extractNested(f.reporter, "displayName"),
     Sprint: extractSprintName(f.customfield_10020),
     "Story Points":
-      f.customfield_10016 != null ? String(f.customfield_10016) : "",
+      f.customfield_10533 != null ? String(f.customfield_10533)
+      : f.customfield_10028 != null ? String(f.customfield_10028)
+      : f.customfield_10016 != null ? String(f.customfield_10016)
+      : "",
     Labels: Array.isArray(f.labels) ? f.labels.join(", ") : "",
     Components: extractList(f.components),
     "Fix Versions": extractList(f.fixVersions),

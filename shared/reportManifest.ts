@@ -50,7 +50,7 @@ export const REPORT_SECTIONS: ReportSection[] = [
       sheet: "2_Velocity",
       label: "Velocity + Velocity Stability",
       metrics: "Velocity, Velocity Stability",
-      jql: 'project IN (LSCI, LVAIRD) AND status = Done AND resolved >= -26w AND "Story Points" > 0 ORDER BY resolved DESC',
+      jql: 'project IN (LSCI, LVAIRD) AND status = Done AND resolved >= -26w AND ("Actual Story Points" > 0 OR "Estimated Story Points" > 0) ORDER BY resolved DESC',
     },
     template: {
       pillar: "delivery",

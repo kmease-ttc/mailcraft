@@ -214,29 +214,32 @@ function metricBox(
   label: string,
   trend?: TrendInfo
 ): string {
-  const arrow =
-    trend && trend.direction === "up"
-      ? "&#9650;"
-      : trend && trend.direction === "down"
-        ? "&#9660;"
-        : "";
-  const trendColor =
-    trend && trend.direction !== "flat"
-      ? trend.isGood
-        ? "#16a34a"
-        : "#dc2626"
-      : "#94a3b8";
-  const trendText =
-    trend && trend.direction !== "flat"
-      ? `${arrow} ${Math.abs(trend.delta)} (${trend.pctChange})`
-      : trend
-        ? "— no change"
-        : "";
+  /* ── trend indicator ─────────────────────────────────── */
+  let trendHtml = "";
+  if (trend && trend.direction !== "flat") {
+    const arrow = trend.direction === "up" ? "&uarr;" : "&darr;";
+    const color = trend.isGood ? "#16a34a" : "#dc2626";
+    const bg    = trend.isGood ? "#f0fdf4" : "#fef2f2";
+    trendHtml = `
+      <div style="margin-top:6px;">
+        <span style="display:inline-block;font-size:11px;font-weight:600;color:${color};background:${bg};padding:2px 8px;border-radius:10px;line-height:1.4;">
+          ${arrow} ${Math.abs(trend.delta)} vs. prior mo.
+        </span>
+      </div>`;
+  } else if (trend) {
+    trendHtml = `
+      <div style="margin-top:6px;">
+        <span style="display:inline-block;font-size:11px;color:#94a3b8;line-height:1.4;">&mdash; no change</span>
+      </div>`;
+  }
 
-  return `<td style="background:#f1f5f9;border-radius:8px;padding:14px 8px;text-align:center;width:16.66%;">
-    <div style="font-size:26px;font-weight:700;color:#1e293b;">${value}</div>
-    <div style="font-size:11px;color:#64748b;margin-top:2px;">${label}</div>
-    ${trendText ? `<div style="font-size:10px;font-weight:600;color:${trendColor};margin-top:4px;letter-spacing:0.2px;">${trendText}</div>` : ""}
+  /* ── card with label above ───────────────────────────── */
+  return `<td style="width:16.66%;text-align:center;vertical-align:top;padding:0 3px;">
+    <div style="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px;line-height:1.3;">${label}</div>
+    <div style="background:#f1f5f9;border-radius:10px;padding:18px 8px 14px;">
+      <div style="font-size:28px;font-weight:700;color:#1e293b;line-height:1;">${value}</div>
+      ${trendHtml}
+    </div>
   </td>`;
 }
 
@@ -577,7 +580,7 @@ export function buildFullReport(
 
     <!-- ═══ EXECUTIVE SUMMARY ═══ -->
     <h2 style="margin:0 0 2px;font-size:18px;">Executive Summary</h2>
-    <p style="margin:0 0 12px;font-size:12px;color:#64748b;">${curMonthLabel} vs prior month &middot; <span style="color:#16a34a;">&#9650; green = improving</span> &middot; <span style="color:#dc2626;">&#9650; red = needs attention</span></p>
+    <p style="margin:0 0 12px;font-size:12px;color:#64748b;">${curMonthLabel} vs prior month &middot; <span style="color:#16a34a;">&uarr; green = improving</span> &middot; <span style="color:#dc2626;">&darr; red = needs attention</span></p>
 
     <p style="margin:0 0 16px;font-size:13px;color:#374151;line-height:1.6;">Over the past 26 weeks the team completed <strong>${totalCompleted} items</strong> (${storiesCompleted} stories, ${totalPts} story points) with a defect density of <strong>${defectDensity}%</strong>. ${parseFloat(unplannedRatio || "0") < 20 ? `Unplanned work stayed low at ${unplannedRatio}%.` : `Unplanned work accounted for ${unplannedRatio}% of output — worth monitoring.`} ${agingCount > 0 ? `${agingCount} backlog items are aging and may need attention.` : "The backlog is clean with no stale items."}</p>
 
