@@ -10,6 +10,7 @@ import {
   Pencil,
   Eye,
   RefreshCw,
+  Save,
 } from "lucide-react";
 
 export function ReportView() {
@@ -18,6 +19,7 @@ export function ReportView() {
   const [fetching, setFetching] = useState(false);
   const [fetched, setFetched] = useState(false);
   const [fetchError, setFetchError] = useState("");
+  const [fetchRunId, setFetchRunId] = useState<number | null>(null);
 
   // Email fields
   const [subject, setSubject] = useState(
@@ -32,12 +34,18 @@ export function ReportView() {
   const [sent, setSent] = useState(false);
   const [sendError, setSendError] = useState("");
 
+  // Save state
+  const [saving, setSaving] = useState(false);
+  const [savedReportId, setSavedReportId] = useState<number | null>(null);
+
   const reportHtml = fetched ? buildFullReport(results) : "";
   const displayHtml = customHtml || reportHtml;
 
   const handleFetchAll = async () => {
     setFetching(true);
     setFetchError("");
+    setSavedReportId(null);
+    setSent(false);
     try {
       const credsRes = await fetch("/api/jira/defaults");
       const creds = await credsRes.json();
@@ -74,7 +82,8 @@ export function ReportView() {
       if (data.results) {
         setResults(data.results);
         setFetched(true);
-        setCustomHtml(""); // reset any edits so it regenerates
+        setCustomHtml("");
+        if (data.fetchRunId) setFetchRunId(data.fetchRunId);
       } else {
         setFetchError("Unexpected response");
       }
@@ -85,6 +94,33 @@ export function ReportView() {
     }
   };
 
+  const handleSaveReport = async () => {
+    if (!fetchRunId) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fetchRunId,
+          subject,
+          bodyHtml: displayHtml,
+          reportMeta: {
+            totalIssues: results.reduce((s, r) => s + r.issueCount, 0),
+            queryCount: results.length,
+            errorCount: results.filter((r) => r.error).length,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (data.id) setSavedReportId(data.id);
+    } catch {
+      // silently fail for now
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSend = async () => {
     if (!recipients.trim()) {
       setSendError("Add at least one recipient");
@@ -92,6 +128,35 @@ export function ReportView() {
     }
     setSending(true);
     setSendError("");
+
+    // Auto-save report before sending if not saved yet
+    let reportId = savedReportId;
+    if (!reportId && fetchRunId) {
+      try {
+        const saveRes = await fetch("/api/reports", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fetchRunId,
+            subject,
+            bodyHtml: displayHtml,
+            reportMeta: {
+              totalIssues: results.reduce((s, r) => s + r.issueCount, 0),
+              queryCount: results.length,
+              errorCount: results.filter((r) => r.error).length,
+            },
+          }),
+        });
+        const saveData = await saveRes.json();
+        if (saveData.id) {
+          reportId = saveData.id;
+          setSavedReportId(saveData.id);
+        }
+      } catch {
+        // continue with send even if save fails
+      }
+    }
+
     try {
       const toList = recipients
         .split(",")
@@ -105,6 +170,7 @@ export function ReportView() {
           recipients: toList.map((addr) => ({ email: addr, data: {} })),
           template: { subject, bodyHtml: displayHtml },
           emailColumn: "email",
+          reportId,
         }),
       });
       const data = await res.json();
@@ -259,9 +325,31 @@ export function ReportView() {
         )}
       </div>
 
-      {/* Send */}
+      {/* Actions: Save + Send */}
       {fetched && (
         <div className="flex items-center gap-3">
+          {/* Save Report */}
+          {savedReportId ? (
+            <div className="flex items-center gap-1.5 text-sm text-gray-500">
+              <CheckCircle className="w-4 h-4 text-green-500" />
+              Saved
+            </div>
+          ) : (
+            <button
+              onClick={handleSaveReport}
+              disabled={saving || !fetchRunId}
+              className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-colors text-sm font-medium"
+            >
+              {saving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+              {saving ? "Saving..." : "Save Report"}
+            </button>
+          )}
+
+          {/* Send */}
           {sent ? (
             <div className="flex items-center gap-2 text-green-600 font-medium">
               <CheckCircle className="w-5 h-5" />

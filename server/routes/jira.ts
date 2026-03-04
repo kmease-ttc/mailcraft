@@ -11,6 +11,8 @@ import {
   flattenIssue,
 } from "../services/jira.js";
 import { JIRA_QUERIES, JIRA_COLUMNS } from "../../shared/jiraQueries.js";
+import { db } from "../db/index.js";
+import { fetchRuns } from "../db/schema.js";
 
 export const jiraRouter = Router();
 
@@ -83,10 +85,34 @@ jiraRouter.post("/query", async (req, res) => {
   }
 
   const allRows = results.flatMap((r) => r.rows);
+  const errorCount = results.filter((r) => r.error).length;
+  const status =
+    errorCount === 0
+      ? "success"
+      : errorCount < results.length
+        ? "partial"
+        : "error";
+
+  // Persist to fetch_runs table
+  const fetchRunResult = db
+    .insert(fetchRuns)
+    .values({
+      status,
+      queryIds: JSON.stringify(queryIds),
+      resultsJson: JSON.stringify(results),
+      totalRows: allRows.length,
+      errorCount,
+      triggeredBy: "manual",
+      scheduleId: null,
+      createdAt: new Date().toISOString(),
+    })
+    .run();
+
   const response: JiraQueryResponse = {
     results,
     totalRows: allRows.length,
     columns: JIRA_COLUMNS,
+    fetchRunId: Number(fetchRunResult.lastInsertRowid),
   };
 
   res.json(response);

@@ -103,7 +103,7 @@ function dataTable(
   const ths = columns
     .map(
       (c) =>
-        `<th style="background:#1e293b;color:#fff;padding:6px 8px;text-align:left;font-size:11px;font-weight:600;">${c}</th>`
+        `<th style="background:#1e293b;color:#fff;padding:8px 10px;text-align:left;font-size:11px;font-weight:600;">${c}</th>`
     )
     .join("");
 
@@ -113,7 +113,7 @@ function dataTable(
         `<tr>${columns
           .map(
             (c) =>
-              `<td style="padding:5px 8px;border-bottom:1px solid #e2e8f0;font-size:11px;${i % 2 ? "background:#f8fafc;" : ""}">${row[c] || ""}</td>`
+              `<td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;font-size:11px;${i % 2 ? "background:#f8fafc;" : ""}">${row[c] || ""}</td>`
           )
           .join("")}</tr>`
     )
@@ -234,9 +234,9 @@ function metricBox(
         : "";
 
   return `<td style="background:#f1f5f9;border-radius:8px;padding:14px 8px;text-align:center;width:16.66%;">
-    <div style="font-size:28px;font-weight:700;color:#4f46e5;">${value}</div>
+    <div style="font-size:26px;font-weight:700;color:#1e293b;">${value}</div>
     <div style="font-size:11px;color:#64748b;margin-top:2px;">${label}</div>
-    ${trendText ? `<div style="font-size:11px;font-weight:600;color:${trendColor};margin-top:4px;">${trendText}</div>` : ""}
+    ${trendText ? `<div style="font-size:10px;font-weight:600;color:${trendColor};margin-top:4px;letter-spacing:0.2px;">${trendText}</div>` : ""}
   </td>`;
 }
 
@@ -254,7 +254,7 @@ function metric(title: string, summary: string): string {
   return `
   <div style="margin-top:20px;">
     <h4 style="margin:0 0 2px;font-size:14px;color:#1e293b;">${title}</h4>
-    <p style="margin:0 0 8px;font-size:12px;color:#64748b;">${summary}</p>
+    <p style="margin:0 0 8px;font-size:11px;font-style:italic;color:#94a3b8;">${summary}</p>
   </div>`;
 }
 
@@ -274,26 +274,28 @@ function stackedBar(segments: { label: string; pct: number; color: string }[]): 
 
 /** Doing Well / Areas for Improvement callout box */
 function insights(good: string[], improve: string[]): string {
-  const li = (text: string) =>
-    `<li style="margin:3px 0;font-size:12px;line-height:1.4;">${text}</li>`;
+  const goodLi = (text: string) =>
+    `<li style="margin:4px 0;font-size:12px;line-height:1.5;list-style:none;padding-left:0;"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#16a34a;margin-right:8px;vertical-align:middle;"></span>${text}</li>`;
+  const improveLi = (text: string) =>
+    `<li style="margin:4px 0;font-size:12px;line-height:1.5;list-style:none;padding-left:0;"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#f59e0b;margin-right:8px;vertical-align:middle;"></span>${text}</li>`;
 
   const goodHtml = good.length
     ? `<div style="flex:1;min-width:200px;">
-        <div style="font-size:12px;font-weight:700;color:#16a34a;margin-bottom:4px;">&#10003; Doing Well</div>
-        <ul style="margin:0;padding-left:16px;color:#374151;">${good.map(li).join("")}</ul>
+        <div style="font-size:12px;font-weight:700;color:#16a34a;margin-bottom:6px;">&#10003; Doing Well</div>
+        <ul style="margin:0;padding-left:0;color:#374151;">${good.map(goodLi).join("")}</ul>
       </div>`
     : "";
 
   const improveHtml = improve.length
     ? `<div style="flex:1;min-width:200px;">
-        <div style="font-size:12px;font-weight:700;color:#f59e0b;margin-bottom:4px;">&#9888; Areas for Improvement</div>
-        <ul style="margin:0;padding-left:16px;color:#374151;">${improve.map(li).join("")}</ul>
+        <div style="font-size:12px;font-weight:700;color:#f59e0b;margin-bottom:6px;">&#9888; Areas for Improvement</div>
+        <ul style="margin:0;padding-left:0;color:#374151;">${improve.map(improveLi).join("")}</ul>
       </div>`
     : "";
 
   if (!goodHtml && !improveHtml) return "";
 
-  return `<div style="display:flex;gap:20px;margin:16px 0 8px;padding:12px 16px;background:#fafafa;border-radius:8px;border:1px solid #e2e8f0;">
+  return `<div style="display:flex;gap:20px;margin:16px 0 8px;padding:14px 18px;background:#fafafa;border-radius:8px;border:1px solid #e2e8f0;">
     ${goodHtml}${improveHtml}
   </div>`;
 }
@@ -449,6 +451,31 @@ export function buildFullReport(
     typePct.set(label, Math.round((count / typeTotal) * 100));
   }
 
+  // Cycle time stats (uses "Cycle Time (days)" if available, falls back to "Lead Time (days)")
+  const cycleTimeDays: number[] = [];
+  if (cycleTime) {
+    for (const row of cycleTime.rows) {
+      // Prefer true cycle time (In Progress → Done), fall back to lead time (Created → Done)
+      const ct = parseFloat(row["Cycle Time (days)"]) || parseFloat(row["Lead Time (days)"]);
+      if (ct > 0) cycleTimeDays.push(ct);
+    }
+  }
+  cycleTimeDays.sort((a, b) => a - b);
+  const ctCount = cycleTimeDays.length;
+  const ctAvg = ctCount > 0 ? Math.round(cycleTimeDays.reduce((s, v) => s + v, 0) / ctCount * 10) / 10 : 0;
+  const ctMedian = ctCount > 0
+    ? ctCount % 2 === 0
+      ? Math.round((cycleTimeDays[ctCount / 2 - 1] + cycleTimeDays[ctCount / 2]) / 2 * 10) / 10
+      : Math.round(cycleTimeDays[Math.floor(ctCount / 2)] * 10) / 10
+    : 0;
+  const ctP90 = ctCount > 0 ? Math.round(cycleTimeDays[Math.floor(ctCount * 0.9)] * 10) / 10 : 0;
+  const ctMin = ctCount > 0 ? cycleTimeDays[0] : 0;
+  const ctMax = ctCount > 0 ? cycleTimeDays[ctCount - 1] : 0;
+  // Check if we have true cycle time or just lead time
+  const hasTrueCycleTime = cycleTime
+    ? cycleTime.rows.some((r) => parseFloat(r["Cycle Time (days)"]) > 0)
+    : false;
+
   // Aging backlog stats
   const agingCount = aging?.issueCount || 0;
   const agingAvgDays = aging ? avgAgeDays(aging.rows, "Updated") : 0;
@@ -532,7 +559,9 @@ export function buildFullReport(
 
   <div style="background:linear-gradient(135deg,#1e293b 0%,#334155 100%);color:#fff;padding:28px 32px;border-radius:12px 12px 0 0;">
     <h1 style="margin:0;font-size:22px;font-weight:700;">SDLC Performance Metrics Report</h1>
-    <p style="margin:4px 0 0;opacity:0.8;font-size:13px;">LSCI &amp; LVAIRD — Last 26 Weeks — Generated ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</p>
+    <div style="border-top:1px solid rgba(255,255,255,0.15);margin-top:12px;padding-top:10px;">
+      <p style="margin:0;opacity:0.85;font-size:14px;letter-spacing:0.3px;">LSCI &amp; LVAIRD &nbsp;&middot;&nbsp; Last 26 Weeks &nbsp;&middot;&nbsp; Generated ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</p>
+    </div>
   </div>
 
   <div style="background:#fff;padding:20px 28px;border:1px solid #e2e8f0;border-top:none;">
@@ -540,6 +569,8 @@ export function buildFullReport(
     <!-- ═══ EXECUTIVE SUMMARY ═══ -->
     <h2 style="margin:0 0 2px;font-size:18px;">Executive Summary</h2>
     <p style="margin:0 0 12px;font-size:12px;color:#64748b;">${curMonthLabel} vs prior month &middot; <span style="color:#16a34a;">&#9650; green = improving</span> &middot; <span style="color:#dc2626;">&#9650; red = needs attention</span></p>
+
+    <p style="margin:0 0 16px;font-size:13px;color:#374151;line-height:1.6;">Over the past 26 weeks the team completed <strong>${totalCompleted} items</strong> (${storiesCompleted} stories, ${totalPts} story points) with a defect density of <strong>${defectDensity}%</strong>. ${parseFloat(unplannedRatio || "0") < 20 ? `Unplanned work stayed low at ${unplannedRatio}%.` : `Unplanned work accounted for ${unplannedRatio}% of output — worth monitoring.`} ${agingCount > 0 ? `${agingCount} backlog items are aging and may need attention.` : "The backlog is clean with no stale items."}</p>
 
     <table style="border-collapse:separate;border-spacing:6px 0;width:100%;table-layout:fixed;margin-bottom:16px;">
       <tr>
@@ -562,19 +593,55 @@ export function buildFullReport(
     <h4 style="margin:12px 0 2px;font-size:13px;color:#374151;">Monthly Throughput</h4>
     ${throughput ? monthlyTrendChart(throughput.rows, "Resolved", "#6366f1") : ""}
 
-    ${metric("Velocity", `${totalPts} story points across ${sprintVelocity.size} sprints — avg ${avgVelocity} pts/sprint.`)}
+    ${metric("Velocity", `${totalPts} story points across ${sprintVelocity.size} sprints.`)}
+    ${sprintVelocity.size > 0 ? (() => {
+      const stabilityLabel = velocityCV < 0.25 ? "Stable" : velocityCV < 0.4 ? "Moderate" : "Volatile";
+      return `<div style="margin:8px 0;">
+        <div style="display:inline-block;background:#f1f5f9;border-radius:8px;padding:12px 20px;text-align:center;min-width:90px;margin-right:8px;">
+          <div style="font-size:24px;font-weight:700;color:#8b5cf6;">${avgVelocity}</div>
+          <div style="font-size:11px;color:#64748b;margin-top:2px;">Avg Pts/Sprint</div>
+        </div>
+        <div style="display:inline-block;background:#f1f5f9;border-radius:8px;padding:12px 20px;text-align:center;min-width:90px;margin-right:8px;">
+          <div style="font-size:24px;font-weight:700;color:#8b5cf6;">${Math.round(velocityStdDev)}</div>
+          <div style="font-size:11px;color:#64748b;margin-top:2px;">Std Dev</div>
+        </div>
+        <div style="display:inline-block;background:#f1f5f9;border-radius:8px;padding:12px 20px;text-align:center;min-width:90px;">
+          <div style="font-size:24px;font-weight:700;color:${velocityCV < 0.25 ? "#16a34a" : velocityCV < 0.4 ? "#f59e0b" : "#dc2626"};">${stabilityLabel}</div>
+          <div style="font-size:11px;color:#64748b;margin-top:2px;">Stability</div>
+        </div>
+      </div>`;
+    })() : ""}
+    <h4 style="margin:12px 0 2px;font-size:13px;color:#374151;">Points per Sprint</h4>
     ${sprintVelocity.size > 0 ? barChart(sprintVelocity, "#8b5cf6", " pts") : '<p style="color:#94a3b8;font-size:12px;">No sprint data available.</p>'}
 
-    ${metric("Cycle Time", `${cycleTime?.issueCount || 0} items measured from "In Progress" to "Done."`)}
+    ${metric("Cycle Time", `${ctCount} items measured — ${hasTrueCycleTime ? "In Progress → Done" : "Created → Done (lead time)"}.`)}
+    ${ctCount > 0 ? `<div style="margin:8px 0;">
+      <div style="display:inline-block;background:#f1f5f9;border-radius:8px;padding:12px 20px;text-align:center;min-width:90px;margin-right:8px;">
+        <div style="font-size:24px;font-weight:700;color:#4f46e5;">${ctAvg}d</div>
+        <div style="font-size:11px;color:#64748b;margin-top:2px;">Average</div>
+      </div>
+      <div style="display:inline-block;background:#f1f5f9;border-radius:8px;padding:12px 20px;text-align:center;min-width:90px;margin-right:8px;">
+        <div style="font-size:24px;font-weight:700;color:#4f46e5;">${ctMedian}d</div>
+        <div style="font-size:11px;color:#64748b;margin-top:2px;">Median</div>
+      </div>
+      <div style="display:inline-block;background:#f1f5f9;border-radius:8px;padding:12px 20px;text-align:center;min-width:90px;margin-right:8px;">
+        <div style="font-size:24px;font-weight:700;color:#f59e0b;">${ctP90}d</div>
+        <div style="font-size:11px;color:#64748b;margin-top:2px;">90th Pctl</div>
+      </div>
+      <div style="display:inline-block;background:#f1f5f9;border-radius:8px;padding:12px 20px;text-align:center;min-width:90px;">
+        <div style="font-size:24px;font-weight:700;color:#94a3b8;">${ctMin}–${ctMax}d</div>
+        <div style="font-size:11px;color:#64748b;margin-top:2px;">Range</div>
+      </div>
+    </div>` : '<p style="color:#94a3b8;font-size:12px;">No cycle time data available.</p>'}
     ${cycleTime ? criticalItemsTable(cycleTime.rows, ["Key", "Summary", "Priority", "Assignee", "Resolved"]) : ""}
 
     ${insights(deliveryGood, deliveryImprove)}
 
     <!-- ═══ PILLAR II : QUALITY ═══ -->
-    ${pillar("II", "Quality", "#ef4444", "Defect rates, production escapes, regressions, and rework — lower is better.")}
+    ${pillar("II", "Quality", "#e05252", "Defect rates, production escapes, regressions, and rework — lower is better.")}
 
     ${metric("Defect Count & Density", `${totalBugs} bugs filed — ${defectDensity}% of all completed work.`)}
-    ${allBugs ? monthlyTrendChart(allBugs.rows, "Created", "#ef4444") : ""}
+    ${allBugs ? monthlyTrendChart(allBugs.rows, "Created", "#e05252") : ""}
     ${allBugs ? criticalItemsTable(allBugs.rows, ["Key", "Summary", "Priority", "Status", "Created"]) : ""}
 
     ${metric("Defect Escape Rate", `${prodBugs?.issueCount || 0} bugs reached production.`)}
@@ -614,10 +681,10 @@ export function buildFullReport(
     ${insights(flowGood, flowImprove)}
 
     <!-- ═══ PILLAR IV : BACKLOG HEALTH ═══ -->
-    ${pillar("IV", "Backlog Health", "#06b6d4", "Pipeline readiness, research investment, and stale items that need attention.")}
+    ${pillar("IV", "Backlog Health", "#4f46e5", "Pipeline readiness, research investment, and stale items that need attention.")}
 
     ${metric("Backlog Readiness", `${backlog?.issueCount || 0} groomed items ready to pull into a sprint.`)}
-    ${backlog ? barChart(countBy(backlog.rows, "Issue Type"), "#06b6d4") : ""}
+    ${backlog ? barChart(countBy(backlog.rows, "Issue Type"), "#4f46e5") : ""}
 
     ${metric("Discovery & Investigation", `${discovery?.issueCount || 0} spikes/research items completed — reducing future uncertainty.`)}
 
@@ -633,8 +700,9 @@ export function buildFullReport(
 
     ${insights(backlogGood, backlogImprove)}
 
-    <div style="margin-top:28px;padding-top:16px;border-top:1px solid #e2e8f0;color:#94a3b8;font-size:11px;">
-      Generated by Mailcraft &middot; ${new Date().toLocaleDateString()}
+    <div style="margin-top:28px;padding-top:16px;border-top:1px solid #e2e8f0;text-align:center;">
+      <div style="font-size:14px;font-weight:700;letter-spacing:1.5px;color:#4f46e5;text-transform:uppercase;margin-bottom:4px;">&#9993; Mailcraft</div>
+      <div style="font-size:11px;color:#94a3b8;">${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</div>
     </div>
   </div>
 </div>`;
