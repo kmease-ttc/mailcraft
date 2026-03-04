@@ -1,11 +1,11 @@
 """
-MRILEV JIRA Metrics Exporter
-=============================
+SDLC JIRA Metrics Exporter
+============================
 Runs all 13 JQL queries against the JIRA REST API and exports
 results to a single Excel file — one sheet per metric.
 
-SETUP (takes 2 minutes):
-1. Fill in your JIRA_DOMAIN, EMAIL, and API_TOKEN below
+SETUP:
+1. Fill in JIRA_DOMAIN, EMAIL, API_TOKEN, and PROJECTS below
 2. Run: pip install requests openpyxl
 3. Run: python scripts/jira_export.py
 
@@ -15,9 +15,9 @@ HOW TO GET AN API TOKEN:
 - Copy the token and paste it below
 
 OUTPUT:
-- Creates "MRILEV_Metrics_Export.xlsx" in the same folder as this script
+- Creates "SDLC_Metrics_Export.xlsx" in the same folder
 - One sheet per query, all fields included
-- Ready to send back to Claude for summary + HTML email
+- Ready for the report builder to generate HTML email
 """
 
 import requests
@@ -32,94 +32,103 @@ import sys
 # CONFIGURATION — FILL THESE IN
 # =============================================================
 
-JIRA_DOMAIN  = "your-company.atlassian.net"   # e.g. acme.atlassian.net
-EMAIL        = "you@yourcompany.com"            # your Atlassian account email
-API_TOKEN    = "your-api-token-here"            # from id.atlassian.com
+JIRA_DOMAIN = "your-company.atlassian.net"  # e.g. acme.atlassian.net
+EMAIL       = "you@yourcompany.com"
+API_TOKEN   = "your-api-token-here"
 
-OUTPUT_FILE  = "MRILEV_Metrics_Export.xlsx"
+# Projects to query — comma-separated list used in JQL
+PROJECTS    = "LSCI, LVAIRD"
+
+OUTPUT_FILE = "SDLC_Metrics_Export.xlsx"
 
 # =============================================================
-# QUERIES — 13 queries covering 15 metrics
+# QUERIES — 13 queries covering the 4 pillars
 # =============================================================
+
+P = f"project IN ({PROJECTS})"
 
 QUERIES = [
+    # ── Pillar I: Delivery Performance ──
     {
         "sheet":   "1_Throughput_WorkType",
-        "label":   "Throughput + Work Type Distribution + Planned vs Unplanned",
-        "metrics": "Throughput, Work Type Distribution, Planned vs. Unplanned",
-        "jql":     'project = MRILEV AND status = Done AND resolved >= -26w ORDER BY resolved DESC',
+        "label":   "Throughput + Work Type Distribution",
+        "metrics": "Throughput, Work Type %",
+        "jql":     f'{P} AND status = Done AND resolved >= -26w ORDER BY resolved DESC',
     },
     {
         "sheet":   "2_Velocity",
-        "label":   "Velocity + Velocity Stability",
+        "label":   "Velocity (story points per sprint)",
         "metrics": "Velocity, Velocity Stability",
-        "jql":     'project = MRILEV AND status = Done AND resolved >= -26w AND "Story Points" > 0 ORDER BY resolved DESC',
+        "jql":     f'{P} AND status = Done AND resolved >= -26w AND "Story Points" > 0 ORDER BY resolved DESC',
     },
     {
         "sheet":   "3_CycleTime",
         "label":   "Cycle Time",
         "metrics": "Cycle Time",
-        "jql":     'project = MRILEV AND status = Done AND resolved >= -26w AND status WAS "In Progress" ORDER BY resolved DESC',
+        "jql":     f'{P} AND status = Done AND resolved >= -26w AND status WAS "In Progress" ORDER BY resolved DESC',
     },
-    {
-        "sheet":   "4_WIP",
-        "label":   "Work in Progress (current snapshot)",
-        "metrics": "Work in Progress",
-        "jql":     'project = MRILEV AND status = "In Progress" ORDER BY priority DESC',
-    },
-    {
-        "sheet":   "5_BacklogReadiness",
-        "label":   "Backlog Readiness",
-        "metrics": "Backlog Readiness",
-        "jql":     'project = MRILEV AND status = "Ready for Development" AND sprint is EMPTY ORDER BY priority DESC',
-    },
+    # ── Pillar II: Quality ──
     {
         "sheet":   "6_AllBugs",
         "label":   "All Bugs (Defect Count / Defect Density)",
         "metrics": "Defect Count, Defect Density",
-        "jql":     'project = MRILEV AND issuetype = Bug AND created >= -26w ORDER BY created DESC',
+        "jql":     f"{P} AND issuetype = Bug AND created >= -26w ORDER BY created DESC",
     },
     {
         "sheet":   "7_ProdBugs",
         "label":   "Production Bugs (Defect Escape Rate)",
         "metrics": "Defect Escape Rate",
-        "jql":     'project = MRILEV AND issuetype = Bug AND created >= -26w AND labels = "prod-bug" ORDER BY created DESC',
+        "jql":     f'{P} AND issuetype = Bug AND created >= -26w AND labels = "prod-bug" ORDER BY created DESC',
     },
     {
         "sheet":   "8_Regressions",
         "label":   "Regression Bugs",
         "metrics": "Regression Rate",
-        "jql":     'project = MRILEV AND issuetype = Bug AND labels = "regression" AND created >= -26w ORDER BY created DESC',
+        "jql":     f'{P} AND issuetype = Bug AND labels = "regression" AND created >= -26w ORDER BY created DESC',
     },
     {
         "sheet":   "9_Rework",
         "label":   "Rework (reopened issues)",
         "metrics": "Rework Rate",
-        "jql":     'project = MRILEV AND status WAS Done AND status != Done AND updated >= -26w ORDER BY updated DESC',
+        "jql":     f"{P} AND status WAS Done AND status != Done AND updated >= -26w ORDER BY updated DESC",
+    },
+    # ── Pillar III: Flow Efficiency ──
+    {
+        "sheet":   "4_WIP",
+        "label":   "Work in Progress (current snapshot)",
+        "metrics": "Work in Progress",
+        "jql":     f'{P} AND status = "In Progress" ORDER BY priority DESC',
     },
     {
         "sheet":   "10_UnplannedWork",
         "label":   "Unplanned Work (Bugs + Incidents completed)",
-        "metrics": "Planned vs. Unplanned (unplanned side)",
-        "jql":     'project = MRILEV AND issuetype IN (Bug, Incident) AND status = Done AND resolved >= -26w ORDER BY resolved DESC',
-    },
-    {
-        "sheet":   "11_Discovery",
-        "label":   "Discovery / Investigation Work",
-        "metrics": "Discovery & Investigation Ratio",
-        "jql":     'project = MRILEV AND labels IN ("spike", "research", "investigation") AND status = Done AND resolved >= -26w ORDER BY resolved DESC',
+        "metrics": "Planned vs. Unplanned",
+        "jql":     f"{P} AND issuetype IN (Bug, Incident) AND status = Done AND resolved >= -26w ORDER BY resolved DESC",
     },
     {
         "sheet":   "12_Blocked",
         "label":   "Blocked Issues (Dependencies)",
         "metrics": "Cross-Team Dependencies",
-        "jql":     'project = MRILEV AND status WAS "Blocked" DURING (startOfMonth(-6), now()) ORDER BY updated DESC',
+        "jql":     f'{P} AND status WAS "Blocked" DURING (startOfMonth(-6), now()) ORDER BY updated DESC',
+    },
+    # ── Pillar IV: Backlog Health ──
+    {
+        "sheet":   "5_BacklogReadiness",
+        "label":   "Backlog Readiness",
+        "metrics": "Backlog Readiness",
+        "jql":     f'{P} AND status = "Ready for Development" AND sprint is EMPTY ORDER BY priority DESC',
+    },
+    {
+        "sheet":   "11_Discovery",
+        "label":   "Discovery / Investigation Work",
+        "metrics": "Discovery & Investigation Ratio",
+        "jql":     f'{P} AND labels IN ("spike", "research", "investigation") AND status = Done AND resolved >= -26w ORDER BY resolved DESC',
     },
     {
         "sheet":   "13_AgingBacklog",
         "label":   "Aging Backlog (no update in 30+ days)",
         "metrics": "Aging Backlog",
-        "jql":     'project = MRILEV AND status NOT IN (Done, Closed, Cancelled) AND updated <= -30d ORDER BY updated ASC',
+        "jql":     f"{P} AND status NOT IN (Done, Closed, Cancelled) AND updated <= -30d ORDER BY updated ASC",
     },
 ]
 
@@ -128,9 +137,9 @@ FIELDS = [
     "key", "summary", "issuetype", "status", "priority",
     "assignee", "reporter", "created", "updated", "resolutiondate",
     "labels", "components", "fixVersions",
-    "customfield_10016",  # Story Points (most common field ID)
-    "customfield_10020",  # Sprint (most common field ID)
-    "customfield_10014",  # Epic Link (most common field ID)
+    "customfield_10016",  # Story Points
+    "customfield_10020",  # Sprint
+    "customfield_10014",  # Epic Link
     "resolution", "timeoriginalestimate", "timespent",
 ]
 
@@ -166,7 +175,7 @@ def run_query(jql, fields=None, max_results=1000):
 
     all_issues = []
     start_at = 0
-    page_size = 100  # JIRA max is 100 per page
+    page_size = 100
 
     while True:
         payload = {
@@ -205,15 +214,12 @@ def run_query(jql, fields=None, max_results=1000):
 def extract_field(issue, field_name):
     """Safely extract a field value from a JIRA issue."""
     fields = issue.get("fields", {})
-
     val = fields.get(field_name)
 
     if val is None:
         return ""
 
-    # Handle nested objects
     if isinstance(val, dict):
-        # Common nested patterns
         if "displayName" in val:
             return val["displayName"]
         if "name" in val:
@@ -222,7 +228,6 @@ def extract_field(issue, field_name):
             return val["value"]
         return str(val)
 
-    # Handle lists (labels, components, fixVersions)
     if isinstance(val, list):
         parts = []
         for item in val:
@@ -244,7 +249,6 @@ def extract_sprint_name(issue):
         sprint = sprint_field[-1]  # most recent sprint
         if isinstance(sprint, dict):
             return sprint.get("name", "")
-        # Sometimes it's a string like "com.atlassian.greenhopper...name=Sprint 42,..."
         if isinstance(sprint, str) and "name=" in sprint:
             try:
                 name_part = sprint.split("name=")[1].split(",")[0]
@@ -254,7 +258,7 @@ def extract_sprint_name(issue):
     return str(sprint_field)
 
 def format_date(date_str):
-    """Format ISO date string to readable format."""
+    """Format ISO date string to YYYY-MM-DD."""
     if not date_str:
         return ""
     try:
@@ -267,8 +271,8 @@ def format_date(date_str):
 # EXCEL OUTPUT
 # =============================================================
 
-HEADER_COLOR = "1E2761"   # Navy
-HEADER_FONT  = "FFFFFF"   # White
+HEADER_COLOR = "1E2761"
+HEADER_FONT  = "FFFFFF"
 
 def style_header_row(ws):
     """Apply header styling to row 1."""
@@ -292,15 +296,12 @@ def auto_width(ws):
 
 def write_issues_to_sheet(ws, issues, query_label, metrics_covered):
     """Write a list of JIRA issues to a worksheet."""
-
-    # Row 1: metadata
     ws.append([f"Query: {query_label}"])
     ws.append([f"Metrics: {metrics_covered}"])
     ws.append([f"Exported: {datetime.now().strftime('%Y-%m-%d %H:%M')}"])
     ws.append([f"Total results: {len(issues)}"])
-    ws.append([])  # blank row
+    ws.append([])
 
-    # Row 6: column headers
     headers = [
         "Key", "Summary", "Issue Type", "Status", "Priority",
         "Assignee", "Reporter", "Sprint", "Story Points",
@@ -311,11 +312,8 @@ def write_issues_to_sheet(ws, issues, query_label, metrics_covered):
     ws.append(headers)
     style_header_row(ws)
 
-    # Data rows
     for issue in issues:
         fields = issue.get("fields", {})
-
-        # Time fields (JIRA stores in seconds)
         estimate = fields.get("timeoriginalestimate")
         spent    = fields.get("timespent")
 
@@ -328,7 +326,7 @@ def write_issues_to_sheet(ws, issues, query_label, metrics_covered):
             extract_field(issue, "assignee"),
             extract_field(issue, "reporter"),
             extract_sprint_name(issue),
-            fields.get("customfield_10016") or "",    # Story Points
+            fields.get("customfield_10016") or "",
             extract_field(issue, "labels"),
             extract_field(issue, "components"),
             extract_field(issue, "fixVersions"),
@@ -338,7 +336,7 @@ def write_issues_to_sheet(ws, issues, query_label, metrics_covered):
             extract_field(issue, "resolution"),
             round(estimate / 3600, 1) if estimate else "",
             round(spent / 3600, 1) if spent else "",
-            fields.get("customfield_10014") or "",    # Epic Link
+            fields.get("customfield_10014") or "",
         ]
         ws.append(row)
 
@@ -348,18 +346,37 @@ def write_summary_sheet(wb, results_summary):
     """Write a summary tab with query results at a glance."""
     ws = wb.create_sheet("00_SUMMARY", 0)
 
-    ws.append(["MRILEV JIRA Metrics Export"])
+    ws.append(["SDLC JIRA Metrics Export"])
+    ws.append([f"Projects: {PROJECTS}"])
     ws.append([f"Exported: {datetime.now().strftime('%Y-%m-%d %H:%M')}"])
     ws.append([f"Period: Last 6 months (26 weeks)"])
     ws.append([])
-    ws.append(["Sheet", "Metrics Covered", "Record Count", "Status"])
+    ws.append(["Sheet", "Pillar", "Metrics Covered", "Record Count", "Status"])
 
-    for cell in ws[5]:
+    for cell in ws[6]:
         cell.font = Font(bold=True, color=HEADER_FONT, size=11)
         cell.fill = PatternFill("solid", fgColor=HEADER_COLOR)
 
+    pillar_map = {
+        "1_Throughput_WorkType": "I. Delivery",
+        "2_Velocity":           "I. Delivery",
+        "3_CycleTime":          "I. Delivery",
+        "6_AllBugs":            "II. Quality",
+        "7_ProdBugs":           "II. Quality",
+        "8_Regressions":        "II. Quality",
+        "9_Rework":             "II. Quality",
+        "4_WIP":                "III. Flow",
+        "10_UnplannedWork":     "III. Flow",
+        "12_Blocked":           "III. Flow",
+        "5_BacklogReadiness":   "IV. Backlog",
+        "11_Discovery":         "IV. Backlog",
+        "13_AgingBacklog":      "IV. Backlog",
+    }
+
     for row in results_summary:
-        ws.append(row)
+        sheet_name = row[0]
+        pillar = pillar_map.get(sheet_name, "")
+        ws.append([row[0], pillar, row[1], row[2], row[3]])
 
     auto_width(ws)
 
@@ -369,10 +386,10 @@ def write_summary_sheet(wb, results_summary):
 
 def main():
     print("=" * 55)
-    print("  MRILEV JIRA Metrics Exporter")
+    print("  SDLC JIRA Metrics Exporter")
+    print(f"  Projects: {PROJECTS}")
     print("=" * 55)
 
-    # Validate config
     if "your-company" in JIRA_DOMAIN or "your-api-token" in API_TOKEN:
         print("\nERROR: Please fill in JIRA_DOMAIN, EMAIL, and API_TOKEN")
         print("       at the top of this script before running.\n")
@@ -384,7 +401,7 @@ def main():
         sys.exit(1)
 
     wb = openpyxl.Workbook()
-    wb.remove(wb.active)  # remove default empty sheet
+    wb.remove(wb.active)
 
     results_summary = []
 
@@ -410,8 +427,8 @@ def main():
     wb.save(OUTPUT_FILE)
     print(f"\nDone! Saved to: {OUTPUT_FILE}")
     print(f"Sheets: 1 summary + {len(QUERIES)} metric tabs")
-    print("\nNext step: Upload this file back to Claude to generate")
-    print("           your stakeholder HTML email summary.")
+    print("\nNext step: Upload this file to the Mailcraft app or Claude")
+    print("           to generate the 4-pillar stakeholder report.")
 
 if __name__ == "__main__":
     main()
