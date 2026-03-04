@@ -51,9 +51,15 @@ jiraRouter.post("/query", async (req, res) => {
 
   const results: JiraQueryResult[] = [];
 
+  // Queries that need changelog for cycle time calculation
+  const CHANGELOG_QUERIES = new Set(["cycle_time"]);
+
   for (const queryDef of selected) {
     try {
-      const issues = await runJqlQuery(credentials, queryDef.jql);
+      const needsChangelog = CHANGELOG_QUERIES.has(queryDef.id);
+      const issues = await runJqlQuery(credentials, queryDef.jql, 1000, {
+        expandChangelog: needsChangelog,
+      });
       const rows = issues.map((issue) =>
         flattenIssue(issue, queryDef.label)
       );

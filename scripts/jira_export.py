@@ -168,7 +168,7 @@ def test_connection():
         print("\n  Check your JIRA_DOMAIN, EMAIL, and API_TOKEN at the top of this script.")
         return False
 
-def run_query(jql, fields=None, max_results=1000):
+def run_query(jql, fields=None, max_results=1000, expand_changelog=False):
     """Run a JQL query and return all matching issues (handles pagination)."""
     if fields is None:
         fields = FIELDS
@@ -178,12 +178,15 @@ def run_query(jql, fields=None, max_results=1000):
     page_size = 100
 
     while True:
+        expand = ["names"]
+        if expand_changelog:
+            expand.append("changelog")
         payload = {
             "jql":        jql,
             "startAt":    start_at,
             "maxResults": page_size,
             "fields":     fields,
-            "expand":     ["names"],
+            "expand":     expand,
         }
         resp = requests.post(
             f"{BASE_URL}/search",
@@ -267,6 +270,29 @@ def format_date(date_str):
     except Exception:
         return date_str
 
+def extract_in_progress_date(issue):
+    """Extract the first date the issue transitioned to 'In Progress' from changelog."""
+    changelog = issue.get("changelog", {})
+    histories = changelog.get("histories", [])
+    # Sort oldest first
+    histories.sort(key=lambda h: h.get("created", ""))
+    for history in histories:
+        for item in history.get("items", []):
+            if item.get("field") == "status" and (item.get("toString") or "").lower() == "in progress":
+                return format_date(history.get("created"))
+    return ""
+
+def compute_days_between(date1, date2):
+    """Compute days between two YYYY-MM-DD date strings."""
+    if not date1 or not date2:
+        return ""
+    try:
+        d1 = datetime.strptime(date1, "%Y-%m-%d")
+        d2 = datetime.strptime(date2, "%Y-%m-%d")
+        return round((d2 - d1).days, 1)
+    except Exception:
+        return ""
+
 # =============================================================
 # EXCEL OUTPUT
 # =============================================================
@@ -306,8 +332,9 @@ def write_issues_to_sheet(ws, issues, query_label, metrics_covered):
         "Key", "Summary", "Issue Type", "Status", "Priority",
         "Assignee", "Reporter", "Sprint", "Story Points",
         "Labels", "Components", "Fix Versions",
-        "Created", "Updated", "Resolved", "Resolution",
-        "Time Estimate (hrs)", "Time Spent (hrs)", "Epic"
+        "Created", "Updated", "Resolved", "Started (In Progress)",
+        "Cycle Time (days)", "Lead Time (days)",
+        "Resolution", "Time Estimate (hrs)", "Time Spent (hrs)", "Epic"
     ]
     ws.append(headers)
     style_header_row(ws)
@@ -316,6 +343,13 @@ def write_issues_to_sheet(ws, issues, query_label, metrics_covered):
         fields = issue.get("fields", {})
         estimate = fields.get("timeoriginalestimate")
         spent    = fields.get("timespent")
+
+        created  = format_date(fields.get("created"))
+        resolved = format_date(fields.get("resolutiondate"))
+        started  = extract_in_progress_date(issue)
+
+        cycle_time = compute_days_between(started, resolved) if started and resolved else ""
+        lead_time  = compute_days_between(created, resolved) if created and resolved else ""
 
         row = [
             issue.get("key", ""),
@@ -330,9 +364,12 @@ def write_issues_to_sheet(ws, issues, query_label, metrics_covered):
             extract_field(issue, "labels"),
             extract_field(issue, "components"),
             extract_field(issue, "fixVersions"),
-            format_date(fields.get("created")),
+            created,
             format_date(fields.get("updated")),
-            format_date(fields.get("resolutiondate")),
+            resolved,
+            started,
+            cycle_time,
+            lead_time,
             extract_field(issue, "resolution"),
             round(estimate / 3600, 1) if estimate else "",
             round(spent / 3600, 1) if spent else "",

@@ -49,7 +49,8 @@ export async function testJiraConnection(
 export async function runJqlQuery(
   creds: JiraCredentials,
   jql: string,
-  maxResults = 1000
+  maxResults = 1000,
+  options?: { expandChangelog?: boolean }
 ): Promise<any[]> {
   const auth = authHeader(creds);
   const allIssues: any[] = [];
@@ -61,6 +62,7 @@ export async function runJqlQuery(
       maxResults: String(Math.min(100, maxResults - allIssues.length)),
       fields: FIELDS.join(","),
     });
+    if (options?.expandChangelog) params.set("expand", "changelog");
     if (nextPageToken) params.set("nextPageToken", nextPageToken);
 
     const url = `https://${creds.domain}/rest/api/3/search/jql?${params}`;
@@ -100,6 +102,27 @@ export function flattenIssue(issue: any, queryLabel: string): CsvRow {
   const key: string = issue.key || "";
   const project = key.split("-")[0] || "";
 
+  // Extract "In Progress" start date from changelog (if available)
+  const startedDate = extractInProgressDate(issue);
+
+  // Compute cycle time in days (In Progress → Resolved)
+  const resolved = f.resolutiondate ? formatDate(f.resolutiondate) : "";
+  const created = f.created ? formatDate(f.created) : "";
+  let cycleTimeDays = "";
+  let leadTimeDays = "";
+
+  if (resolved) {
+    const resolvedMs = new Date(resolved).getTime();
+    if (startedDate) {
+      const startMs = new Date(startedDate).getTime();
+      cycleTimeDays = String(Math.round((resolvedMs - startMs) / (1000 * 60 * 60 * 24) * 10) / 10);
+    }
+    if (created) {
+      const createdMs = new Date(created).getTime();
+      leadTimeDays = String(Math.round((resolvedMs - createdMs) / (1000 * 60 * 60 * 24) * 10) / 10);
+    }
+  }
+
   return {
     Query: queryLabel,
     Project: project,
@@ -116,9 +139,12 @@ export function flattenIssue(issue: any, queryLabel: string): CsvRow {
     Labels: Array.isArray(f.labels) ? f.labels.join(", ") : "",
     Components: extractList(f.components),
     "Fix Versions": extractList(f.fixVersions),
-    Created: formatDate(f.created),
+    Created: created,
     Updated: formatDate(f.updated),
-    Resolved: formatDate(f.resolutiondate),
+    Resolved: resolved,
+    Started: startedDate,
+    "Cycle Time (days)": cycleTimeDays,
+    "Lead Time (days)": leadTimeDays,
     Resolution: extractNested(f.resolution),
     "Time Estimate (hrs)": estimate
       ? String(Math.round((estimate / 3600) * 10) / 10)
@@ -128,6 +154,29 @@ export function flattenIssue(issue: any, queryLabel: string): CsvRow {
       : "",
     Epic: f.customfield_10014 || "",
   };
+}
+
+/** Extract the first date the issue transitioned to "In Progress" from changelog */
+function extractInProgressDate(issue: any): string {
+  const changelog = issue.changelog;
+  if (!changelog || !changelog.histories) return "";
+
+  // Walk changelog oldest-first to find the first transition TO "In Progress"
+  const histories = [...(changelog.histories as any[])].sort(
+    (a, b) => new Date(a.created).getTime() - new Date(b.created).getTime()
+  );
+
+  for (const history of histories) {
+    for (const item of history.items || []) {
+      if (
+        item.field === "status" &&
+        (item.toString || "").toLowerCase() === "in progress"
+      ) {
+        return formatDate(history.created);
+      }
+    }
+  }
+  return "";
 }
 
 function extractNested(val: any, key = "name"): string {

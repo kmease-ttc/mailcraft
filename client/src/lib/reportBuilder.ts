@@ -272,6 +272,32 @@ function stackedBar(segments: { label: string; pct: number; color: string }[]): 
   return `<div style="display:flex;height:26px;border-radius:5px;overflow:hidden;margin:8px 0;">${bars}</div>`;
 }
 
+/** Doing Well / Areas for Improvement callout box */
+function insights(good: string[], improve: string[]): string {
+  const li = (text: string) =>
+    `<li style="margin:3px 0;font-size:12px;line-height:1.4;">${text}</li>`;
+
+  const goodHtml = good.length
+    ? `<div style="flex:1;min-width:200px;">
+        <div style="font-size:12px;font-weight:700;color:#16a34a;margin-bottom:4px;">&#10003; Doing Well</div>
+        <ul style="margin:0;padding-left:16px;color:#374151;">${good.map(li).join("")}</ul>
+      </div>`
+    : "";
+
+  const improveHtml = improve.length
+    ? `<div style="flex:1;min-width:200px;">
+        <div style="font-size:12px;font-weight:700;color:#f59e0b;margin-bottom:4px;">&#9888; Areas for Improvement</div>
+        <ul style="margin:0;padding-left:16px;color:#374151;">${improve.map(li).join("")}</ul>
+      </div>`
+    : "";
+
+  if (!goodHtml && !improveHtml) return "";
+
+  return `<div style="display:flex;gap:20px;margin:16px 0 8px;padding:12px 16px;background:#fafafa;border-radius:8px;border:1px solid #e2e8f0;">
+    ${goodHtml}${improveHtml}
+  </div>`;
+}
+
 /** Inline stat pair (two numbers side by side) */
 function statPair(
   val1: string | number, label1: string,
@@ -435,6 +461,70 @@ export function buildFullReport(
       }).length
     : 0;
 
+  // Velocity stability (coefficient of variation)
+  const sprintPtsArr = [...sprintVelocity.values()];
+  const velocityStdDev = sprintPtsArr.length > 1
+    ? Math.sqrt(sprintPtsArr.reduce((s, v) => s + (v - avgVelocity) ** 2, 0) / sprintPtsArr.length)
+    : 0;
+  const velocityCV = avgVelocity > 0 ? velocityStdDev / avgVelocity : 0;
+
+  // WIP count
+  const wipCount = wip?.issueCount || 0;
+
+  // Escape rate
+  const escapeRate = totalCompleted > 0
+    ? ((prodBugs?.issueCount || 0) / totalCompleted * 100)
+    : 0;
+
+  // ── Pillar insights (data-driven) ──────────────────────────
+
+  const deliveryGood: string[] = [];
+  const deliveryImprove: string[] = [];
+
+  if (ptsTrend.direction === "up") deliveryGood.push(`Story point output up ${ptsTrend.pctChange} month-over-month`);
+  if (ptsTrend.direction === "down") deliveryImprove.push(`Story point output down ${ptsTrend.pctChange} from prior month`);
+  if (storiesTrend.direction === "up") deliveryGood.push(`Stories completed trending up (${storiesThisMonth} vs ${storiesPriorMonth} prior month)`);
+  if (storiesTrend.direction === "down") deliveryImprove.push(`Fewer stories completed than prior month (${storiesThisMonth} vs ${storiesPriorMonth})`);
+  if (velocityCV < 0.25 && sprintPtsArr.length > 1) deliveryGood.push(`Velocity is stable across sprints (low variance)`);
+  if (velocityCV >= 0.4 && sprintPtsArr.length > 1) deliveryImprove.push(`Velocity swings significantly between sprints — consider more consistent sprint planning`);
+  if (avgVelocity > 0 && sprintPtsArr.length > 2) deliveryGood.push(`Averaging ${avgVelocity} pts/sprint across ${sprintVelocity.size} sprints`);
+
+  const qualityGood: string[] = [];
+  const qualityImprove: string[] = [];
+
+  if ((prodBugs?.issueCount || 0) === 0) qualityGood.push("Zero production escapes — strong pre-release testing");
+  if ((prodBugs?.issueCount || 0) > 0) qualityImprove.push(`${prodBugs!.issueCount} bug${prodBugs!.issueCount > 1 ? "s" : ""} escaped to production`);
+  if ((regressions?.issueCount || 0) === 0) qualityGood.push("No regressions detected");
+  if ((regressions?.issueCount || 0) > 0) qualityImprove.push(`${regressions!.issueCount} regression${regressions!.issueCount > 1 ? "s" : ""} found — review test coverage for changed areas`);
+  if (bugsTrend && bugsTrend.direction === "down") qualityGood.push(`Bug filings trending down ${bugsTrend.pctChange}`);
+  if (bugsTrend && bugsTrend.direction === "up") qualityImprove.push(`Bug filings up ${bugsTrend.pctChange} month-over-month`);
+  if (parseFloat(defectDensity) < 10 && defectDensity !== "N/A") qualityGood.push(`Defect density at ${defectDensity}% — well controlled`);
+  if (parseFloat(defectDensity) >= 20) qualityImprove.push(`Defect density at ${defectDensity}% — 1 in 5 items is a bug`);
+  if (reworkTrend && reworkTrend.direction === "down") qualityGood.push("Rework trending down — fewer items reopened");
+  if (reworkTrend && reworkTrend.direction === "up") qualityImprove.push(`Rework up ${reworkTrend.pctChange} — tighten acceptance criteria before marking Done`);
+
+  const flowGood: string[] = [];
+  const flowImprove: string[] = [];
+
+  if (wipCount <= 10) flowGood.push(`WIP at ${wipCount} — manageable load`);
+  if (wipCount > 15) flowImprove.push(`${wipCount} items in progress — consider WIP limits to improve focus and cycle time`);
+  if (parseFloat(unplannedRatio || "0") < 15) flowGood.push(`Only ${unplannedRatio}% unplanned work — team is mostly executing on plan`);
+  if (parseFloat(unplannedRatio || "0") >= 30) flowImprove.push(`${unplannedRatio}% of work is reactive (bugs/incidents) — capacity being consumed by unplanned items`);
+  if ((blocked?.issueCount || 0) === 0) flowGood.push("No blocked items — dependencies are well-managed");
+  if ((blocked?.issueCount || 0) > 3) flowImprove.push(`${blocked!.issueCount} items were blocked — external dependencies causing delays`);
+
+  const backlogGood: string[] = [];
+  const backlogImprove: string[] = [];
+
+  if ((backlog?.issueCount || 0) >= 10) backlogGood.push(`${backlog!.issueCount} items groomed and ready — healthy sprint pipeline`);
+  if ((backlog?.issueCount || 0) > 0 && (backlog?.issueCount || 0) < 5) backlogImprove.push(`Only ${backlog!.issueCount} items ready to pull — backlog may run dry`);
+  if ((discovery?.issueCount || 0) > 0) backlogGood.push(`${discovery!.issueCount} research/spike items completed — investing in reducing uncertainty`);
+  if ((discovery?.issueCount || 0) === 0) backlogImprove.push("No discovery work completed — consider investing in spikes to de-risk upcoming features");
+  if (agingCount === 0) backlogGood.push("No stale backlog items");
+  if (agingOver90 > 0) backlogImprove.push(`${agingOver90} items untouched for 90+ days — candidates for removal or re-prioritization`);
+  if (agingAvgDays > 60 && agingCount > 0) backlogImprove.push(`Average aging item is ${agingAvgDays} days old — backlog needs grooming`);
+  if (agingAvgDays > 0 && agingAvgDays <= 45 && agingCount > 0) backlogGood.push(`Aging items averaging ${agingAvgDays} days — within reasonable range`);
+
   /* ── HTML ───────────────────────────────────────────────────── */
 
   let html = `
@@ -478,6 +568,8 @@ export function buildFullReport(
     ${metric("Cycle Time", `${cycleTime?.issueCount || 0} items measured from "In Progress" to "Done."`)}
     ${cycleTime ? criticalItemsTable(cycleTime.rows, ["Key", "Summary", "Priority", "Assignee", "Resolved"]) : ""}
 
+    ${insights(deliveryGood, deliveryImprove)}
+
     <!-- ═══ PILLAR II : QUALITY ═══ -->
     ${pillar("II", "Quality", "#ef4444", "Defect rates, production escapes, regressions, and rework — lower is better.")}
 
@@ -498,6 +590,8 @@ export function buildFullReport(
     ${metric("Rework Rate", `${rework?.issueCount || 0} issues reopened after "Done" — signals missed requirements or premature closure.`)}
     ${rework && rework.issueCount > 0 ? barChart(countBy(rework.rows, "Issue Type"), "#f97316") : ""}
 
+    ${insights(qualityGood, qualityImprove)}
+
     <!-- ═══ PILLAR III : FLOW ═══ -->
     ${pillar("III", "Flow Efficiency", "#f59e0b", "Work-in-progress levels, blockers, and unplanned interruptions that affect throughput.")}
 
@@ -517,6 +611,8 @@ export function buildFullReport(
     ${metric("Cross-Team Dependencies", `${blocked?.issueCount || 0} issues entered "Blocked" status due to external dependencies.`)}
     ${blocked ? criticalItemsTable(blocked.rows, ["Key", "Summary", "Priority", "Assignee", "Updated"]) : ""}
 
+    ${insights(flowGood, flowImprove)}
+
     <!-- ═══ PILLAR IV : BACKLOG HEALTH ═══ -->
     ${pillar("IV", "Backlog Health", "#06b6d4", "Pipeline readiness, research investment, and stale items that need attention.")}
 
@@ -534,6 +630,8 @@ export function buildFullReport(
         )
       : '<p style="color:#16a34a;font-size:12px;">No aging items.</p>'
     }
+
+    ${insights(backlogGood, backlogImprove)}
 
     <div style="margin-top:28px;padding-top:16px;border-top:1px solid #e2e8f0;color:#94a3b8;font-size:11px;">
       Generated by Mailcraft &middot; ${new Date().toLocaleDateString()}
