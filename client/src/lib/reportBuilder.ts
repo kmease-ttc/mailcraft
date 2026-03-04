@@ -616,23 +616,6 @@ export function buildFullReport(
         return (Date.now() - new Date(d).getTime()) / (1000 * 60 * 60 * 24) > 90;
       }).length
     : 0;
-  const aging60to90 = aging
-    ? aging.rows.filter((r) => {
-        const d = r["Updated"];
-        if (!d) return false;
-        const days = (Date.now() - new Date(d).getTime()) / (1000 * 60 * 60 * 24);
-        return days > 60 && days <= 90;
-      }).length
-    : 0;
-  const aging30to60 = aging
-    ? aging.rows.filter((r) => {
-        const d = r["Updated"];
-        if (!d) return false;
-        const days = (Date.now() - new Date(d).getTime()) / (1000 * 60 * 60 * 24);
-        return days >= 30 && days <= 60;
-      }).length
-    : 0;
-
   // Stage distribution — group all open items by status
   const stageMap = new Map<string, number>();
   const stageAgingMap = new Map<string, number>(); // count of items 30+ days old per stage
@@ -818,8 +801,6 @@ export function buildFullReport(
 
   // ── Backlog pipeline data ──────────────────────────────────
   const readyCount = backlog?.issueCount || 0;
-  const blockedCount = blocked?.issueCount || 0;
-  const discoveryCount = discovery?.issueCount || 0;
 
   // Stage color map & pipeline grouping
   const SC: Record<string, string> = {
@@ -1037,20 +1018,6 @@ export function buildFullReport(
       const byType = countBy(backlog.rows, "Issue Type");
       return typeDistributionBar(byType);
     })() : '<p style="color:#94a3b8;font-size:11px;">No items in Ready for Development.</p>'}
-
-    ${metric("Aging Analysis", `${agingCount} items with no activity for 30+ days.${agingGroomedCount > 0 ? ' <strong style="color:#dc2626;">' + agingGroomedCount + " in groomed stages.</strong>" : ""}`)}
-    ${agingCount > 0 ? `<table style="border-collapse:separate;border-spacing:6px 0;width:100%;table-layout:fixed;margin:8px 0;">
-      <tr>
-        ${stageCard("30\u201360 days", aging30to60, "#eab308")}
-        ${stageCard("60\u201390 days", aging60to90, "#f97316")}
-        ${stageCard("90+ days", agingOver90, "#dc2626", agingOver90 > 0 ? "Stale" : undefined)}
-        ${stageCard("Groomed & Aging", agingGroomedCount, "#991b1b", agingGroomedCount > 0 ? "Critical" : "Clean")}
-      </tr>
-    </table>
-    <p style="font-size:10px;color:#94a3b8;margin:4px 0 0;line-height:1.4;">
-      <strong style="color:#64748b;">Note:</strong> A large backlog is healthy when items are new or in discovery. Aging groomed items (ready for dev but untouched 30+ days) indicate a pipeline problem.
-      ${agingAvgDays > 0 ? " Average aging item is <strong>" + agingAvgDays + " days</strong> old." : ""}
-    </p>` : '<p style="color:#16a34a;font-size:11px;">No aging items.</p>'}
 
     ${insights(backlogGood, backlogImprove)}
 
