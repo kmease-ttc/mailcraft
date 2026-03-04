@@ -3,6 +3,13 @@ import { REPORT_QUERY_IDS } from "@shared/reportManifest";
 
 /* ── helpers ─────────────────────────────────────────────────── */
 
+/** Format a number to at most 1 decimal place, never repeating decimals */
+function fmt(n: number): string {
+  const rounded = Math.round(n * 10) / 10;
+  if (Number.isInteger(rounded)) return String(rounded);
+  return rounded.toFixed(1);
+}
+
 /** Group rows by month (YYYY-MM) using a date column */
 function groupByMonth(rows: CsvRow[], dateCol: string): Map<string, CsvRow[]> {
   const map = new Map<string, CsvRow[]>();
@@ -36,7 +43,54 @@ function sumBy(rows: CsvRow[], groupField: string, sumField: string): Map<string
   return map;
 }
 
-/** Check if a priority value is P0/P1 (critical) */
+/* ── issue type system ──────────────────────────────────────── */
+
+const ISSUE_TYPE_COLORS: Record<string, string> = {
+  initiative: "#1e40af",
+  epic: "#7c3aed",
+  story: "#4f46e5",
+  task: "#0891b2",
+  bug: "#dc2626",
+  "sub-task": "#64748b",
+  subtask: "#64748b",
+  incident: "#ea580c",
+  research: "#059669",
+  "test execution": "#0284c7",
+  spike: "#059669",
+};
+
+const ISSUE_TYPE_ORDER: string[] = [
+  "initiative", "epic", "story", "task", "bug", "incident",
+  "research", "spike", "sub-task", "subtask", "test execution",
+];
+
+function typeColor(issueType: string): string {
+  return ISSUE_TYPE_COLORS[issueType.toLowerCase()] || "#94a3b8";
+}
+
+function typeSort(a: string, b: string): number {
+  const ai = ISSUE_TYPE_ORDER.indexOf(a.toLowerCase());
+  const bi = ISSUE_TYPE_ORDER.indexOf(b.toLowerCase());
+  return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+}
+
+/* ── grading system ─────────────────────────────────────────── */
+
+function gradeFor(score: number): { letter: string; color: string } {
+  if (score >= 90) return { letter: "A", color: "#16a34a" };
+  if (score >= 80) return { letter: "B", color: "#22c55e" };
+  if (score >= 70) return { letter: "C", color: "#eab308" };
+  if (score >= 60) return { letter: "D", color: "#f97316" };
+  return { letter: "F", color: "#dc2626" };
+}
+
+function gradeBadge(score: number): string {
+  const { letter, color } = gradeFor(score);
+  return `<span style="display:inline-block;background:${color};color:#fff;font-size:12px;font-weight:800;width:24px;height:24px;line-height:24px;text-align:center;border-radius:6px;float:right;">${letter}</span>`;
+}
+
+/* ── priority helpers ───────────────────────────────────────── */
+
 const CRITICAL_PRIORITIES = new Set([
   "highest", "high", "blocker", "critical",
   "p0", "p1", "sev-0", "sev-1", "sub-0", "sub-1",
@@ -48,30 +102,9 @@ function isCritical(row: CsvRow): boolean {
   return CRITICAL_PRIORITIES.has(p);
 }
 
-/** Build an HTML horizontal bar chart */
-function barChart(
-  data: Map<string, number>,
-  color = "#4f46e5",
-  suffix = ""
-): string {
-  const max = Math.max(...data.values(), 1);
-  const rows = [...data.entries()]
-    .map(
-      ([label, count]) => `
-      <tr>
-        <td style="padding:3px 10px 3px 0;font-size:12px;white-space:nowrap;color:#374151;width:140px;">${label}</td>
-        <td style="padding:3px 0;width:100%;">
-          <div style="background:${color};height:20px;border-radius:3px;width:${Math.max((count / max) * 100, 2)}%;min-width:2px;"></div>
-        </td>
-        <td style="padding:3px 0 3px 8px;font-size:12px;font-weight:600;color:#1e293b;white-space:nowrap;">${count}${suffix}</td>
-      </tr>`
-    )
-    .join("");
+/* ── chart primitives ───────────────────────────────────────── */
 
-  return `<table style="border-collapse:collapse;width:100%;margin:8px 0;">${rows}</table>`;
-}
-
-/** Build a column chart with horizontal time axis (time flows left→right) */
+/** Column chart — fits within email width via table-layout:fixed */
 function columnChart(
   data: Map<string, number>,
   color = "#4f46e5",
@@ -83,10 +116,10 @@ function columnChart(
 
   const cols = entries
     .map(
-      ([label, count]) => `
-      <td style="vertical-align:bottom;text-align:center;padding:0 2px;">
-        <div style="font-size:10px;font-weight:600;color:#1e293b;margin-bottom:2px;">${count}${suffix}</div>
-        <div style="background:${color};height:${Math.max(Math.round((count / max) * 120), 4)}px;border-radius:3px 3px 0 0;margin:0 auto;max-width:48px;min-width:16px;"></div>
+      ([, count]) => `
+      <td style="vertical-align:bottom;text-align:center;padding:0 1px;">
+        <div style="font-size:9px;font-weight:700;color:#0f172a;margin-bottom:2px;">${fmt(count)}${suffix}</div>
+        <div style="background:${color};height:${Math.max(Math.round((count / max) * 100), 4)}px;border-radius:4px 4px 0 0;margin:0 auto;min-width:8px;"></div>
       </td>`
     )
     .join("");
@@ -94,17 +127,17 @@ function columnChart(
   const labels = entries
     .map(
       ([label]) =>
-        `<td style="text-align:center;padding:4px 2px 0;font-size:10px;color:#64748b;white-space:nowrap;">${label}</td>`
+        `<td style="text-align:center;padding:3px 1px 0;font-size:8px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;max-width:0;">${label}</td>`
     )
     .join("");
 
-  return `<table style="border-collapse:collapse;width:100%;margin:8px 0;">
+  return `<table style="border-collapse:collapse;width:100%;margin:8px 0;table-layout:fixed;">
     <tr>${cols}</tr>
     <tr style="border-top:1px solid #e2e8f0;">${labels}</tr>
   </table>`;
 }
 
-/** Build a monthly trend column chart (horizontal time axis) */
+/** Monthly trend column chart */
 function monthlyTrendChart(
   rows: CsvRow[],
   dateCol: string,
@@ -124,7 +157,7 @@ function monthlyTrendChart(
   return columnChart(data, color);
 }
 
-/** Build a compact HTML data table (only used for critical items) */
+/** Compact data table */
 function dataTable(
   rows: CsvRow[],
   columns: string[],
@@ -136,7 +169,7 @@ function dataTable(
   const ths = columns
     .map(
       (c) =>
-        `<th style="background:#1e293b;color:#fff;padding:8px 10px;text-align:left;font-size:11px;font-weight:600;">${c}</th>`
+        `<th style="background:#0f172a;color:#fff;padding:8px 10px;text-align:left;font-size:11px;font-weight:600;">${c}</th>`
     )
     .join("");
 
@@ -146,21 +179,20 @@ function dataTable(
         `<tr>${columns
           .map(
             (c) =>
-              `<td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;font-size:11px;${i % 2 ? "background:#f8fafc;" : ""}">${row[c] || ""}</td>`
+              `<td style="padding:8px 10px;border-bottom:1px solid #f1f5f9;font-size:11px;color:#334155;${i % 2 ? "background:#f8fafc;" : ""}">${row[c] || ""}</td>`
           )
           .join("")}</tr>`
     )
     .join("");
 
-  let html = `<table style="border-collapse:collapse;width:100%;margin:8px 0;"><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
+  let html = `<table style="border-collapse:collapse;width:100%;margin:8px 0;border-radius:8px;overflow:hidden;"><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
 
   if (rows.length > maxRows) {
-    html += `<p style="color:#94a3b8;font-size:11px;">Showing ${maxRows} of ${rows.length}.</p>`;
+    html += `<p style="color:#94a3b8;font-size:10px;">Showing ${maxRows} of ${rows.length}.</p>`;
   }
   return html;
 }
 
-/** Statuses considered closed/resolved */
 const DONE_STATUSES = new Set(["done", "closed", "cancelled", "resolved"]);
 
 function isDone(row: CsvRow): boolean {
@@ -168,20 +200,17 @@ function isDone(row: CsvRow): boolean {
   return DONE_STATUSES.has(s);
 }
 
-/**
- * Show a critical-items table ONLY if there are open P0/P1 issues.
- * Filters out Done/Closed/Cancelled — only surfaces issues needing attention.
- */
 function criticalItemsTable(rows: CsvRow[], columns: string[]): string {
   const critical = rows.filter((r) => isCritical(r) && !isDone(r));
   if (critical.length === 0) return "";
 
   return `
-    <p style="margin:8px 0 4px;font-size:12px;font-weight:600;color:#dc2626;">&#9888; ${critical.length} open critical-priority item${critical.length > 1 ? "s" : ""} (P0/P1):</p>
+    <p style="margin:8px 0 4px;font-size:12px;font-weight:600;color:#dc2626;">&#9888; ${critical.length} open critical item${critical.length > 1 ? "s" : ""}</p>
     ${dataTable(critical, columns, 10)}`;
 }
 
-/** Get YYYY-MM for current and prior month */
+/* ── date helpers ────────────────────────────────────────────── */
+
 function getMonthKeys(): { current: string; prior: string } {
   const now = new Date();
   const cur = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -190,7 +219,6 @@ function getMonthKeys(): { current: string; prior: string } {
   return { current: cur, prior: pri };
 }
 
-/** Count rows matching a month in a given date column */
 function countForMonth(rows: CsvRow[], dateCol: string, monthKey: string): number {
   return rows.filter((r) => (r[dateCol] || "").startsWith(monthKey)).length;
 }
@@ -204,10 +232,6 @@ interface TrendInfo {
   isGood: boolean;
 }
 
-/**
- * Compute month-over-month trend.
- * @param upIsGood — true if increases are positive (e.g. throughput)
- */
 function computeTrend(
   rows: CsvRow[],
   dateCol: string,
@@ -230,7 +254,6 @@ function computeTrend(
   return { currentVal: curCount, priorVal: priCount, delta, pctChange, direction, isGood };
 }
 
-/** Compute average age in days from a date column to today */
 function avgAgeDays(rows: CsvRow[], dateCol: string): number {
   const now = Date.now();
   let total = 0;
@@ -249,56 +272,63 @@ function avgAgeDays(rows: CsvRow[], dateCol: string): number {
 
 /* ── layout primitives ───────────────────────────────────────── */
 
-/** Metric box (renders as a <td> for uniform sizing) */
+/** Metric box — clean card with trend badge; prior month shows below */
 function metricBox(
   value: string | number,
   label: string,
-  trend?: TrendInfo
+  trend?: TrendInfo,
+  priorVal?: string | number
 ): string {
-  /* ── trend indicator ─────────────────────────────────── */
   let trendHtml = "";
   if (trend && trend.direction !== "flat") {
     const arrow = trend.direction === "up" ? "&uarr;" : "&darr;";
     const color = trend.isGood ? "#16a34a" : "#dc2626";
-    const bg    = trend.isGood ? "#f0fdf4" : "#fef2f2";
+    const bg    = trend.isGood ? "#ecfdf5" : "#fef2f2";
     trendHtml = `
       <div style="margin-top:6px;">
-        <span style="display:inline-block;font-size:11px;font-weight:600;color:${color};background:${bg};padding:2px 8px;border-radius:10px;line-height:1.4;">
-          ${arrow} ${Math.abs(trend.delta)} vs. prior mo.
+        <span style="display:inline-block;font-size:10px;font-weight:600;color:${color};background:${bg};padding:2px 7px;border-radius:10px;">
+          ${arrow} ${fmt(Math.abs(trend.delta))}
         </span>
       </div>`;
   } else if (trend) {
     trendHtml = `
       <div style="margin-top:6px;">
-        <span style="display:inline-block;font-size:11px;color:#94a3b8;line-height:1.4;">&mdash; no change</span>
+        <span style="display:inline-block;font-size:10px;color:#cbd5e1;">&mdash; flat</span>
       </div>`;
   }
 
-  /* ── card with label above ───────────────────────────── */
+  let priorHtml = "";
+  if (priorVal !== undefined) {
+    priorHtml = `<div style="font-size:9px;color:#94a3b8;margin-top:4px;text-align:center;">Prior mo: ${priorVal}</div>`;
+  }
+
   return `<td style="width:16.66%;text-align:center;vertical-align:top;padding:0 3px;">
-    <div style="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px;line-height:1.3;">${label}</div>
-    <div style="background:#f1f5f9;border-radius:10px;padding:18px 8px 14px;">
-      <div style="font-size:28px;font-weight:700;color:#1e293b;line-height:1;">${value}</div>
+    <div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:5px;">${label}</div>
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px 6px 12px;min-height:76px;">
+      <div style="font-size:26px;font-weight:800;color:#0f172a;line-height:1;">${value}</div>
       ${trendHtml}
     </div>
+    ${priorHtml}
   </td>`;
 }
 
 /** Pillar header */
-function pillar(num: string, title: string, color: string, description: string): string {
+function pillar(num: string, title: string, color: string, description: string, grade?: number): string {
+  const gradeHtml = grade !== undefined ? gradeBadge(grade) : "";
   return `
-  <div style="margin-top:36px;padding:16px 20px;background:linear-gradient(135deg,${color}10,${color}05);border-left:4px solid ${color};border-radius:0 8px 8px 0;">
-    <h2 style="margin:0;font-size:17px;color:#1e293b;"><span style="color:${color};font-weight:800;">${num}</span> &nbsp;${title}</h2>
-    <p style="margin:4px 0 0;font-size:12px;color:#64748b;">${description}</p>
+  <div style="margin-top:32px;padding:14px 20px;background:#fff;border:1px solid #e2e8f0;border-left:4px solid ${color};border-radius:0 10px 10px 0;">
+    <h2 style="margin:0;font-size:16px;font-weight:800;color:#0f172a;letter-spacing:-0.3px;">${gradeHtml}<span style="color:${color};margin-right:6px;">${num}</span>${title}</h2>
+    <p style="margin:3px 0 0;font-size:11px;color:#94a3b8;">${description}</p>
   </div>`;
 }
 
-/** Metric sub-header within a pillar */
-function metric(title: string, summary: string): string {
+/** Metric sub-header */
+function metric(title: string, summary: string, grade?: number): string {
+  const gradeHtml = grade !== undefined ? gradeBadge(grade) : "";
   return `
-  <div style="margin-top:20px;">
-    <h4 style="margin:0 0 2px;font-size:14px;color:#1e293b;">${title}</h4>
-    <p style="margin:0 0 8px;font-size:11px;font-style:italic;color:#94a3b8;">${summary}</p>
+  <div style="margin-top:18px;">
+    <h4 style="margin:0 0 2px;font-size:13px;font-weight:700;color:#0f172a;">${gradeHtml}${title}</h4>
+    <p style="margin:0 0 6px;font-size:11px;color:#94a3b8;">${summary}</p>
   </div>`;
 }
 
@@ -308,63 +338,83 @@ function stackedBar(segments: { label: string; pct: number; color: string }[]): 
     .filter((s) => s.pct > 0)
     .map(
       (s) =>
-        `<div style="background:${s.color};width:${s.pct}%;display:flex;align-items:center;justify-content:center;padding:0 6px;min-width:${s.pct > 5 ? 0 : 30}px;">
-          <span style="color:#fff;font-size:10px;font-weight:600;white-space:nowrap;">${s.label} ${s.pct.toFixed(0)}%</span>
+        `<div style="background:${s.color};width:${s.pct}%;display:flex;align-items:center;justify-content:center;padding:0 4px;min-width:${s.pct > 5 ? 0 : 28}px;">
+          <span style="color:#fff;font-size:9px;font-weight:600;white-space:nowrap;">${s.label} ${fmt(s.pct)}%</span>
         </div>`
     )
     .join("");
-  return `<div style="display:flex;height:26px;border-radius:5px;overflow:hidden;margin:8px 0;">${bars}</div>`;
+  return `<div style="display:flex;height:24px;border-radius:6px;overflow:hidden;margin:8px 0;gap:1px;">${bars}</div>`;
 }
 
-/** Doing Well / Areas for Improvement callout box */
+/** Issue type distribution — clean color bar (no labels in bar) + legend below */
+function typeDistributionBar(typeCounts: Map<string, number>): string {
+  const total = [...typeCounts.values()].reduce((s, n) => s + n, 0) || 1;
+  const sorted = [...typeCounts.entries()].sort((a, b) => typeSort(a[0], b[0]));
+
+  // Color-only bar — no text overlaid
+  const bars = sorted
+    .filter(([, count]) => (count / total) * 100 > 0)
+    .map(([type, count]) => {
+      const pct = (count / total) * 100;
+      return `<div style="background:${typeColor(type)};width:${pct}%;min-width:3px;"></div>`;
+    })
+    .join("");
+
+  const barHtml = `<div style="display:flex;height:22px;border-radius:6px;overflow:hidden;margin:6px 0;gap:1px;">${bars}</div>`;
+
+  const legendItems = sorted
+    .map(([type, count]) =>
+      `<span style="display:inline-block;margin-right:10px;font-size:10px;color:#64748b;white-space:nowrap;"><span style="display:inline-block;width:7px;height:7px;border-radius:2px;background:${typeColor(type)};margin-right:3px;vertical-align:middle;"></span>${type} ${count} <span style="color:#94a3b8;">(${fmt((count / total) * 100)}%)</span></span>`
+    )
+    .join("");
+
+  return `${barHtml}<div style="margin:3px 0 6px;line-height:1.7;">${legendItems}</div>`;
+}
+
+/** Stage card — single metric with accent top border */
+function stageCard(label: string, count: number, color: string, sublabel?: string): string {
+  return `<td style="width:25%;padding:0 4px;">
+    <div style="background:#fff;border:1px solid #e2e8f0;border-top:3px solid ${color};border-radius:10px;padding:14px 8px;text-align:center;">
+      <div style="font-size:26px;font-weight:800;color:${color};line-height:1;">${count}</div>
+      <div style="font-size:9px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-top:4px;">${label}</div>
+      ${sublabel ? `<div style="font-size:9px;color:#94a3b8;margin-top:2px;">${sublabel}</div>` : ""}
+    </div>
+  </td>`;
+}
+
+/** Doing Well / Areas for Improvement */
 function insights(good: string[], improve: string[]): string {
   const goodLi = (text: string) =>
-    `<li style="margin:4px 0;font-size:12px;line-height:1.5;list-style:none;padding-left:0;"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#16a34a;margin-right:8px;vertical-align:middle;"></span>${text}</li>`;
+    `<li style="margin:3px 0;font-size:11px;line-height:1.5;list-style:none;padding-left:0;"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#16a34a;margin-right:7px;vertical-align:middle;"></span>${text}</li>`;
   const improveLi = (text: string) =>
-    `<li style="margin:4px 0;font-size:12px;line-height:1.5;list-style:none;padding-left:0;"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#f59e0b;margin-right:8px;vertical-align:middle;"></span>${text}</li>`;
+    `<li style="margin:3px 0;font-size:11px;line-height:1.5;list-style:none;padding-left:0;"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#f59e0b;margin-right:7px;vertical-align:middle;"></span>${text}</li>`;
 
   const goodHtml = good.length
-    ? `<div style="flex:1;min-width:200px;">
-        <div style="font-size:12px;font-weight:700;color:#16a34a;margin-bottom:6px;">&#10003; Doing Well</div>
-        <ul style="margin:0;padding-left:0;color:#374151;">${good.map(goodLi).join("")}</ul>
+    ? `<div style="flex:1;min-width:180px;">
+        <div style="font-size:11px;font-weight:700;color:#16a34a;margin-bottom:4px;">&#10003; Doing Well</div>
+        <ul style="margin:0;padding-left:0;color:#334155;">${good.map(goodLi).join("")}</ul>
       </div>`
     : "";
 
   const improveHtml = improve.length
-    ? `<div style="flex:1;min-width:200px;">
-        <div style="font-size:12px;font-weight:700;color:#f59e0b;margin-bottom:6px;">&#9888; Areas for Improvement</div>
-        <ul style="margin:0;padding-left:0;color:#374151;">${improve.map(improveLi).join("")}</ul>
+    ? `<div style="flex:1;min-width:180px;">
+        <div style="font-size:11px;font-weight:700;color:#f59e0b;margin-bottom:4px;">&#9888; Improve</div>
+        <ul style="margin:0;padding-left:0;color:#334155;">${improve.map(improveLi).join("")}</ul>
       </div>`
     : "";
 
   if (!goodHtml && !improveHtml) return "";
 
-  return `<div style="display:flex;gap:20px;margin:16px 0 8px;padding:14px 18px;background:#fafafa;border-radius:8px;border:1px solid #e2e8f0;">
+  return `<div style="display:flex;gap:16px;margin:14px 0 8px;padding:12px 16px;background:#f8fafc;border-radius:10px;border:1px solid #f1f5f9;">
     ${goodHtml}${improveHtml}
   </div>`;
 }
 
-/** Inline stat pair (two numbers side by side) */
-function statPair(
-  val1: string | number, label1: string,
-  val2: string | number, label2: string,
-  color = "#4f46e5"
-): string {
-  const box = (v: string | number, l: string) =>
-    `<div style="display:inline-block;background:#f1f5f9;border-radius:8px;padding:12px 20px;text-align:center;min-width:100px;margin-right:8px;">
-      <div style="font-size:24px;font-weight:700;color:${color};">${v}</div>
-      <div style="font-size:11px;color:#64748b;margin-top:2px;">${l}</div>
-    </div>`;
-  return `<div style="margin:8px 0;">${box(val1, label1)}${box(val2, label2)}</div>`;
-}
-
 /* ── main report builder ─────────────────────────────────────── */
 
-/** Build the full SDLC metrics report HTML */
 export function buildFullReport(
   results: JiraQueryResult[]
 ): string {
-  // Validate: warn if any manifest-defined query is missing from results
   const resultIds = new Set(results.map((r) => r.queryId));
   const missing = REPORT_QUERY_IDS.filter((id) => !resultIds.has(id));
   if (missing.length > 0) {
@@ -393,17 +443,15 @@ export function buildFullReport(
   const totalCompleted = throughput?.issueCount || 0;
   const totalBugs = allBugs?.issueCount || 0;
   const defectDensity =
-    totalCompleted > 0 ? ((totalBugs / totalCompleted) * 100).toFixed(1) : "N/A";
+    totalCompleted > 0 ? fmt((totalBugs / totalCompleted) * 100) : "N/A";
   const unplannedCount = unplanned?.issueCount || 0;
   const unplannedRatio =
-    totalCompleted > 0 ? ((unplannedCount / totalCompleted) * 100).toFixed(1) : "N/A";
+    totalCompleted > 0 ? fmt((unplannedCount / totalCompleted) * 100) : "N/A";
 
-  // User story counts (filter by Issue Type = Story)
   const isStory = (r: CsvRow) => (r["Issue Type"] || "").toLowerCase() === "story";
   const storiesCompleted = throughput ? throughput.rows.filter(isStory).length : 0;
   const storiesInProgress = wip ? wip.rows.filter(isStory).length : 0;
 
-  // Story points completed this month vs prior
   const { current: curMonth, prior: priorMonth } = getMonthKeys();
   const curMonthLabel = new Date(curMonth + "-01").toLocaleDateString("en-US", {
     month: "long",
@@ -427,10 +475,9 @@ export function buildFullReport(
     delta: ptsDelta,
     pctChange: ptsPriorMonth > 0 ? Math.abs(Math.round((ptsDelta / ptsPriorMonth) * 100)) + "%" : ptsThisMonth > 0 ? "new" : "—",
     direction: ptsDelta > 0 ? "up" : ptsDelta < 0 ? "down" : "flat",
-    isGood: ptsDelta >= 0, // more points = good
+    isGood: ptsDelta >= 0,
   };
 
-  // Stories completed this month vs prior (for trend)
   const storiesThisMonth = throughput
     ? throughput.rows.filter((r) => isStory(r) && (r["Resolved"] || "").startsWith(curMonth)).length
     : 0;
@@ -457,7 +504,7 @@ export function buildFullReport(
     : 0;
   const lastMonthBugs = bugsTrend?.currentVal || 0;
   const lastMonthDensity =
-    lastMonthCompleted > 0 ? ((lastMonthBugs / lastMonthCompleted) * 100).toFixed(1) : "N/A";
+    lastMonthCompleted > 0 ? fmt((lastMonthBugs / lastMonthCompleted) * 100) : "N/A";
   const priorMonthCompleted = throughput
     ? throughput.rows.filter((r) => (r["Resolved"] || "").startsWith(priorMonth)).length
     : 0;
@@ -470,12 +517,12 @@ export function buildFullReport(
     currentVal: curDensityNum,
     priorVal: priorMonthDensity,
     delta: Math.round(densityDelta * 10) / 10,
-    pctChange: Math.abs(Math.round(densityDelta * 10) / 10) + "pp",
+    pctChange: fmt(Math.abs(Math.round(densityDelta * 10) / 10)) + "pp",
     direction: densityDelta > 0.5 ? "up" : densityDelta < -0.5 ? "down" : "flat",
     isGood: densityDelta <= 0,
   };
 
-  // Velocity: story points per sprint
+  // Velocity per sprint (strip "Sprint" prefix)
   const sprintVelocity = velocity
     ? (() => {
         const raw = sumBy(velocity.rows, "Sprint", "Story Points");
@@ -487,7 +534,11 @@ export function buildFullReport(
             if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
             return a[0].localeCompare(b[0]);
           });
-        return new Map(entries);
+        const cleaned = entries.map(([label, val]) => {
+          const stripped = label.replace(/sprint\s*/i, "").trim();
+          return [stripped, Math.round(val * 10) / 10] as [string, number];
+        });
+        return new Map(cleaned);
       })()
     : new Map<string, number>();
   const totalPts = velocity
@@ -496,19 +547,13 @@ export function buildFullReport(
   const avgVelocity =
     sprintVelocity.size > 0 ? Math.round(totalPts / sprintVelocity.size) : 0;
 
-  // Work type distribution (%)
+  // Work type distribution
   const typeBreakdown = throughput ? countBy(throughput.rows, "Issue Type") : new Map<string, number>();
-  const typeTotal = [...typeBreakdown.values()].reduce((s, n) => s + n, 0) || 1;
-  const typePct = new Map<string, number>();
-  for (const [label, count] of typeBreakdown) {
-    typePct.set(label, Math.round((count / typeTotal) * 100));
-  }
 
-  // Cycle time stats (uses "Cycle Time (days)" if available, falls back to "Lead Time (days)")
+  // Cycle time stats
   const cycleTimeDays: number[] = [];
   if (cycleTime) {
     for (const row of cycleTime.rows) {
-      // Prefer true cycle time (In Progress → Done), fall back to lead time (Created → Done)
       const ct = parseFloat(row["Cycle Time (days)"]) || parseFloat(row["Lead Time (days)"]);
       if (ct > 0) cycleTimeDays.push(ct);
     }
@@ -522,240 +567,426 @@ export function buildFullReport(
       : Math.round(cycleTimeDays[Math.floor(ctCount / 2)] * 10) / 10
     : 0;
   const ctP90 = ctCount > 0 ? Math.round(cycleTimeDays[Math.floor(ctCount * 0.9)] * 10) / 10 : 0;
-  const ctMin = ctCount > 0 ? cycleTimeDays[0] : 0;
-  const ctMax = ctCount > 0 ? cycleTimeDays[ctCount - 1] : 0;
-  // Check if we have true cycle time or just lead time
+  const ctMin = ctCount > 0 ? Math.round(cycleTimeDays[0] * 10) / 10 : 0;
+  const ctMax = ctCount > 0 ? Math.round(cycleTimeDays[ctCount - 1] * 10) / 10 : 0;
   const hasTrueCycleTime = cycleTime
     ? cycleTime.rows.some((r) => parseFloat(r["Cycle Time (days)"]) > 0)
     : false;
 
-  // Aging backlog stats
+  // Cycle time trend
+  const ctThisMonthDays: number[] = [];
+  const ctPriorMonthDays: number[] = [];
+  if (cycleTime) {
+    for (const row of cycleTime.rows) {
+      const ct = parseFloat(row["Cycle Time (days)"]) || parseFloat(row["Lead Time (days)"]);
+      if (ct <= 0) continue;
+      const resolved = row["Resolved"] || "";
+      if (resolved.startsWith(curMonth)) ctThisMonthDays.push(ct);
+      if (resolved.startsWith(priorMonth)) ctPriorMonthDays.push(ct);
+    }
+  }
+  ctThisMonthDays.sort((a, b) => a - b);
+  ctPriorMonthDays.sort((a, b) => a - b);
+  const medianOf = (arr: number[]) => {
+    if (arr.length === 0) return 0;
+    return arr.length % 2 === 0
+      ? (arr[arr.length / 2 - 1] + arr[arr.length / 2]) / 2
+      : arr[Math.floor(arr.length / 2)];
+  };
+  const ctThisMedian = medianOf(ctThisMonthDays);
+  const ctPriorMedian = medianOf(ctPriorMonthDays);
+  const ctDelta = ctThisMedian - ctPriorMedian;
+  const ctTrend: TrendInfo = {
+    currentVal: ctThisMedian,
+    priorVal: ctPriorMedian,
+    delta: Math.round(ctDelta * 10) / 10,
+    pctChange: ctPriorMedian > 0 ? Math.abs(Math.round((ctDelta / ctPriorMedian) * 100)) + "%" : "—",
+    direction: ctDelta > 0.5 ? "up" : ctDelta < -0.5 ? "down" : "flat",
+    isGood: ctDelta <= 0,
+  };
+
+  // Aging backlog
   const agingCount = aging?.issueCount || 0;
   const agingAvgDays = aging ? avgAgeDays(aging.rows, "Updated") : 0;
   const agingOver90 = aging
     ? aging.rows.filter((r) => {
         const d = r["Updated"];
         if (!d) return false;
+        return (Date.now() - new Date(d).getTime()) / (1000 * 60 * 60 * 24) > 90;
+      }).length
+    : 0;
+  const aging60to90 = aging
+    ? aging.rows.filter((r) => {
+        const d = r["Updated"];
+        if (!d) return false;
         const days = (Date.now() - new Date(d).getTime()) / (1000 * 60 * 60 * 24);
-        return days > 90;
+        return days > 60 && days <= 90;
+      }).length
+    : 0;
+  const aging30to60 = aging
+    ? aging.rows.filter((r) => {
+        const d = r["Updated"];
+        if (!d) return false;
+        const days = (Date.now() - new Date(d).getTime()) / (1000 * 60 * 60 * 24);
+        return days >= 30 && days <= 60;
       }).length
     : 0;
 
-  // Velocity stability (coefficient of variation)
+  // Velocity stability
   const sprintPtsArr = [...sprintVelocity.values()];
   const velocityStdDev = sprintPtsArr.length > 1
     ? Math.sqrt(sprintPtsArr.reduce((s, v) => s + (v - avgVelocity) ** 2, 0) / sprintPtsArr.length)
     : 0;
   const velocityCV = avgVelocity > 0 ? velocityStdDev / avgVelocity : 0;
 
-  // WIP count
   const wipCount = wip?.issueCount || 0;
 
-  // Escape rate
-  const escapeRate = totalCompleted > 0
-    ? ((prodBugs?.issueCount || 0) / totalCompleted * 100)
-    : 0;
+  // Rates
+  const escapeRate = totalCompleted > 0 ? ((prodBugs?.issueCount || 0) / totalCompleted * 100) : 0;
+  const regressionRate = totalCompleted > 0 ? ((regressions?.issueCount || 0) / totalCompleted * 100) : 0;
+  const reworkRate = totalCompleted > 0 ? ((rework?.issueCount || 0) / totalCompleted * 100) : 0;
 
-  // ── Pillar insights (data-driven) ──────────────────────────
+  // ── Letter grades ──────────────────────────────────────────
+
+  const deliveryScore = (() => {
+    let score = 0;
+    if (ptsTrend.direction === "up") score += 25; else if (ptsTrend.direction === "flat") score += 15; else score += 5;
+    if (velocityCV < 0.25 && sprintPtsArr.length > 1) score += 25; else if (velocityCV < 0.4) score += 15; else score += 5;
+    if (ctMedian > 0 && ctMedian <= 5) score += 25; else if (ctMedian <= 10) score += 20; else if (ctMedian <= 15) score += 15; else if (ctMedian <= 25) score += 10; else score += 5;
+    if (storiesTrend.direction === "up") score += 25; else if (storiesTrend.direction === "flat") score += 15; else score += 5;
+    return score;
+  })();
+
+  const qualityScore = (() => {
+    let score = 0;
+    const dd = parseFloat(defectDensity) || 0;
+    if (dd < 5) score += 25; else if (dd < 10) score += 20; else if (dd < 15) score += 15; else if (dd < 20) score += 10; else score += 5;
+    if (escapeRate === 0) score += 25; else if (escapeRate < 2) score += 20; else if (escapeRate < 5) score += 15; else if (escapeRate < 10) score += 10; else score += 5;
+    const regCount = regressions?.issueCount || 0;
+    if (regCount === 0) score += 25; else if (regCount <= 2) score += 20; else if (regCount <= 5) score += 15; else score += 5;
+    const rwCount = rework?.issueCount || 0;
+    if (rwCount === 0) score += 25; else if (rwCount <= 3) score += 20; else if (rwCount <= 6) score += 15; else score += 5;
+    return score;
+  })();
+
+  const flowScore = (() => {
+    let score = 0;
+    if (wipCount <= 8) score += 33; else if (wipCount <= 15) score += 22; else score += 8;
+    const up = parseFloat(unplannedRatio || "0");
+    if (up < 10) score += 34; else if (up < 20) score += 25; else if (up < 30) score += 15; else score += 5;
+    const bl = blocked?.issueCount || 0;
+    if (bl === 0) score += 33; else if (bl <= 2) score += 22; else if (bl <= 5) score += 12; else score += 5;
+    return score;
+  })();
+
+  const backlogScore = (() => {
+    let score = 0;
+    const ready = backlog?.issueCount || 0;
+    if (ready >= 15) score += 34; else if (ready >= 10) score += 25; else if (ready >= 5) score += 18; else score += 5;
+    const disc = discovery?.issueCount || 0;
+    if (disc >= 5) score += 33; else if (disc > 0) score += 22; else score += 8;
+    if (agingCount === 0) score += 33; else if (agingAvgDays <= 45) score += 22; else if (agingAvgDays <= 60) score += 12; else score += 5;
+    return score;
+  })();
+
+  // Individual metric grades
+  const throughputGrade = (() => {
+    let s = 0;
+    if (ptsTrend.direction === "up") s += 50; else if (ptsTrend.direction === "flat") s += 35; else s += 15;
+    if (storiesTrend.direction === "up") s += 50; else if (storiesTrend.direction === "flat") s += 35; else s += 15;
+    return s;
+  })();
+
+  const velocityGrade = (() => {
+    let s = 0;
+    if (velocityCV < 0.25 && sprintPtsArr.length > 1) s += 50; else if (velocityCV < 0.4) s += 30; else s += 10;
+    if (ptsTrend.direction === "up") s += 50; else if (ptsTrend.direction === "flat") s += 35; else s += 15;
+    return s;
+  })();
+
+  const cycleTimeGrade = (() => {
+    if (ctMedian <= 0) return 50;
+    if (ctMedian <= 3) return 95;
+    if (ctMedian <= 5) return 90;
+    if (ctMedian <= 8) return 80;
+    if (ctMedian <= 12) return 70;
+    if (ctMedian <= 20) return 60;
+    return 40;
+  })();
+
+  const defectDensityGrade = (() => {
+    const dd = parseFloat(defectDensity) || 0;
+    if (dd < 5) return 95; if (dd < 10) return 85; if (dd < 15) return 70; if (dd < 20) return 60; return 40;
+  })();
+
+  const escapeRateGrade = (() => {
+    if (escapeRate === 0) return 95; if (escapeRate < 2) return 85; if (escapeRate < 5) return 70; if (escapeRate < 10) return 55; return 35;
+  })();
+
+  const regressionGrade = (() => {
+    const c = regressions?.issueCount || 0;
+    if (c === 0) return 95; if (c <= 2) return 80; if (c <= 5) return 65; return 40;
+  })();
+
+  const reworkGrade = (() => {
+    const c = rework?.issueCount || 0;
+    if (c === 0) return 95; if (c <= 3) return 80; if (c <= 6) return 65; return 40;
+  })();
+
+  // ── Pillar insights ──────────────────────────────────────────
 
   const deliveryGood: string[] = [];
   const deliveryImprove: string[] = [];
 
   if (ptsTrend.direction === "up") deliveryGood.push(`Story point output up ${ptsTrend.pctChange} month-over-month`);
   if (ptsTrend.direction === "down") deliveryImprove.push(`Story point output down ${ptsTrend.pctChange} from prior month`);
-  if (storiesTrend.direction === "up") deliveryGood.push(`Stories completed trending up (${storiesThisMonth} vs ${storiesPriorMonth} prior month)`);
+  if (storiesTrend.direction === "up") deliveryGood.push(`Stories completed trending up (${storiesThisMonth} vs ${storiesPriorMonth} prior)`);
   if (storiesTrend.direction === "down") deliveryImprove.push(`Fewer stories completed than prior month (${storiesThisMonth} vs ${storiesPriorMonth})`);
-  if (velocityCV < 0.25 && sprintPtsArr.length > 1) deliveryGood.push(`Velocity is stable across sprints (low variance)`);
-  if (velocityCV >= 0.4 && sprintPtsArr.length > 1) deliveryImprove.push(`Velocity swings significantly between sprints — consider more consistent sprint planning`);
+  if (velocityCV < 0.25 && sprintPtsArr.length > 1) deliveryGood.push(`Velocity is stable across sprints`);
+  if (velocityCV >= 0.4 && sprintPtsArr.length > 1) deliveryImprove.push(`Velocity swings significantly — consider more consistent sprint planning`);
   if (avgVelocity > 0 && sprintPtsArr.length > 2) deliveryGood.push(`Averaging ${avgVelocity} pts/sprint across ${sprintVelocity.size} sprints`);
 
   const qualityGood: string[] = [];
   const qualityImprove: string[] = [];
 
-  if ((prodBugs?.issueCount || 0) === 0) qualityGood.push("Zero production escapes — strong pre-release testing");
+  if ((prodBugs?.issueCount || 0) === 0) qualityGood.push("Zero production escapes");
   if ((prodBugs?.issueCount || 0) > 0) qualityImprove.push(`${prodBugs!.issueCount} bug${prodBugs!.issueCount > 1 ? "s" : ""} escaped to production`);
   if ((regressions?.issueCount || 0) === 0) qualityGood.push("No regressions detected");
-  if ((regressions?.issueCount || 0) > 0) qualityImprove.push(`${regressions!.issueCount} regression${regressions!.issueCount > 1 ? "s" : ""} found — review test coverage for changed areas`);
+  if ((regressions?.issueCount || 0) > 0) qualityImprove.push(`${regressions!.issueCount} regression${regressions!.issueCount > 1 ? "s" : ""} found`);
   if (bugsTrend && bugsTrend.direction === "down") qualityGood.push(`Bug filings trending down ${bugsTrend.pctChange}`);
   if (bugsTrend && bugsTrend.direction === "up") qualityImprove.push(`Bug filings up ${bugsTrend.pctChange} month-over-month`);
-  if (parseFloat(defectDensity) < 10 && defectDensity !== "N/A") qualityGood.push(`Defect density at ${defectDensity}% — well controlled`);
+  if (parseFloat(defectDensity) < 10 && defectDensity !== "N/A") qualityGood.push(`Defect density at ${defectDensity}%`);
   if (parseFloat(defectDensity) >= 20) qualityImprove.push(`Defect density at ${defectDensity}% — 1 in 5 items is a bug`);
-  if (reworkTrend && reworkTrend.direction === "down") qualityGood.push("Rework trending down — fewer items reopened");
-  if (reworkTrend && reworkTrend.direction === "up") qualityImprove.push(`Rework up ${reworkTrend.pctChange} — tighten acceptance criteria before marking Done`);
+  if (reworkTrend && reworkTrend.direction === "down") qualityGood.push("Rework trending down");
+  if (reworkTrend && reworkTrend.direction === "up") qualityImprove.push(`Rework up ${reworkTrend.pctChange}`);
 
   const flowGood: string[] = [];
   const flowImprove: string[] = [];
 
-  if (wipCount <= 10) flowGood.push(`WIP at ${wipCount} — manageable load`);
-  if (wipCount > 15) flowImprove.push(`${wipCount} items in progress — consider WIP limits to improve focus and cycle time`);
-  if (parseFloat(unplannedRatio || "0") < 15) flowGood.push(`Only ${unplannedRatio}% unplanned work — team is mostly executing on plan`);
-  if (parseFloat(unplannedRatio || "0") >= 30) flowImprove.push(`${unplannedRatio}% of work is reactive (bugs/incidents) — capacity being consumed by unplanned items`);
-  if ((blocked?.issueCount || 0) === 0) flowGood.push("No blocked items — dependencies are well-managed");
-  if ((blocked?.issueCount || 0) > 3) flowImprove.push(`${blocked!.issueCount} items were blocked — external dependencies causing delays`);
+  if (wipCount <= 10) flowGood.push(`WIP at ${wipCount} — manageable`);
+  if (wipCount > 15) flowImprove.push(`${wipCount} items in progress — consider WIP limits`);
+  if (parseFloat(unplannedRatio || "0") < 15) flowGood.push(`Only ${unplannedRatio}% unplanned work`);
+  if (parseFloat(unplannedRatio || "0") >= 30) flowImprove.push(`${unplannedRatio}% reactive work`);
+  if ((blocked?.issueCount || 0) === 0) flowGood.push("No blocked items");
+  if ((blocked?.issueCount || 0) > 3) flowImprove.push(`${blocked!.issueCount} items blocked by dependencies`);
 
   const backlogGood: string[] = [];
   const backlogImprove: string[] = [];
 
-  if ((backlog?.issueCount || 0) >= 10) backlogGood.push(`${backlog!.issueCount} items groomed and ready — healthy sprint pipeline`);
-  if ((backlog?.issueCount || 0) > 0 && (backlog?.issueCount || 0) < 5) backlogImprove.push(`Only ${backlog!.issueCount} items ready to pull — backlog may run dry`);
-  if ((discovery?.issueCount || 0) > 0) backlogGood.push(`${discovery!.issueCount} research/spike items completed — investing in reducing uncertainty`);
-  if ((discovery?.issueCount || 0) === 0) backlogImprove.push("No discovery work completed — consider investing in spikes to de-risk upcoming features");
+  if ((backlog?.issueCount || 0) >= 10) backlogGood.push(`${backlog!.issueCount} items groomed and ready`);
+  if ((backlog?.issueCount || 0) > 0 && (backlog?.issueCount || 0) < 5) backlogImprove.push(`Only ${backlog!.issueCount} items ready — backlog may run dry`);
+  if ((discovery?.issueCount || 0) > 0) backlogGood.push(`${discovery!.issueCount} research/spikes completed`);
+  if ((discovery?.issueCount || 0) === 0) backlogImprove.push("No discovery work completed");
   if (agingCount === 0) backlogGood.push("No stale backlog items");
-  if (agingOver90 > 0) backlogImprove.push(`${agingOver90} items untouched for 90+ days — candidates for removal or re-prioritization`);
-  if (agingAvgDays > 60 && agingCount > 0) backlogImprove.push(`Average aging item is ${agingAvgDays} days old — backlog needs grooming`);
-  if (agingAvgDays > 0 && agingAvgDays <= 45 && agingCount > 0) backlogGood.push(`Aging items averaging ${agingAvgDays} days — within reasonable range`);
+  if (agingOver90 > 0) backlogImprove.push(`${agingOver90} items untouched 90+ days`);
+  if (agingAvgDays > 60 && agingCount > 0) backlogImprove.push(`Average aging item is ${agingAvgDays} days old`);
+  if (agingAvgDays > 0 && agingAvgDays <= 45 && agingCount > 0) backlogGood.push(`Aging items averaging ${agingAvgDays} days`);
+
+  // ── Backlog pipeline data ──────────────────────────────────
+  const readyCount = backlog?.issueCount || 0;
+  const blockedCount = blocked?.issueCount || 0;
+  const discoveryCount = discovery?.issueCount || 0;
+  const totalPipeline = readyCount + wipCount + blockedCount + agingCount;
+  const groomedRate = totalPipeline > 0
+    ? fmt((readyCount / totalPipeline) * 100)
+    : "0";
+  const inProgressRate = totalPipeline > 0
+    ? fmt((wipCount / totalPipeline) * 100)
+    : "0";
 
   /* ── HTML ───────────────────────────────────────────────────── */
 
   let html = `
-<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1e293b;line-height:1.5;max-width:800px;margin:0 auto;">
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Inter',sans-serif;color:#0f172a;line-height:1.5;max-width:680px;margin:0 auto;">
 
-  <div style="background:linear-gradient(135deg,#1e293b 0%,#334155 100%);color:#fff;padding:28px 32px;border-radius:12px 12px 0 0;">
-    <h1 style="margin:0;font-size:22px;font-weight:700;">SDLC Performance Metrics Report</h1>
-    <div style="border-top:1px solid rgba(255,255,255,0.15);margin-top:12px;padding-top:10px;">
-      <p style="margin:0;opacity:0.85;font-size:14px;letter-spacing:0.3px;">LSCI &amp; LVAIRD &nbsp;&middot;&nbsp; Last 26 Weeks &nbsp;&middot;&nbsp; Generated ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</p>
+  <!-- Header -->
+  <div style="background:linear-gradient(135deg,#0f172a 0%,#1e293b 60%,#334155 100%);color:#fff;padding:32px;border-radius:16px 16px 0 0;">
+    <div style="font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,0.4);margin-bottom:4px;">Performance Report</div>
+    <h1 style="margin:0;font-size:24px;font-weight:800;letter-spacing:-0.5px;">SDLC Metrics</h1>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.08);">
+      <p style="margin:0;opacity:0.6;font-size:13px;">LSCI &amp; LVAIRD &nbsp;&middot;&nbsp; 26 Weeks &nbsp;&middot;&nbsp; ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</p>
     </div>
   </div>
 
-  <div style="background:#fff;padding:20px 28px;border:1px solid #e2e8f0;border-top:none;">
+  <!-- Body -->
+  <div style="background:#fafbfc;padding:24px 24px 28px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 16px 16px;">
 
     <!-- ═══ EXECUTIVE SUMMARY ═══ -->
-    <h2 style="margin:0 0 2px;font-size:18px;">Executive Summary</h2>
-    <p style="margin:0 0 12px;font-size:12px;color:#64748b;">${curMonthLabel} vs prior month &middot; <span style="color:#16a34a;">&uarr; green = improving</span> &middot; <span style="color:#dc2626;">&darr; red = needs attention</span></p>
+    <h2 style="margin:0 0 2px;font-size:17px;font-weight:800;letter-spacing:-0.3px;">Executive Summary</h2>
+    <p style="margin:0 0 14px;font-size:11px;color:#94a3b8;">${curMonthLabel} vs prior &nbsp;&middot;&nbsp; <span style="color:#16a34a;">&uarr; good</span> &nbsp; <span style="color:#dc2626;">&darr; needs attention</span></p>
 
-    <p style="margin:0 0 16px;font-size:13px;color:#374151;line-height:1.6;">Over the past 26 weeks the team completed <strong>${totalCompleted} items</strong> (${storiesCompleted} stories, ${totalPts} story points) with a defect density of <strong>${defectDensity}%</strong>. ${parseFloat(unplannedRatio || "0") < 20 ? `Unplanned work stayed low at ${unplannedRatio}%.` : `Unplanned work accounted for ${unplannedRatio}% of output — worth monitoring.`} ${agingCount > 0 ? `${agingCount} backlog items are aging and may need attention.` : "The backlog is clean with no stale items."}</p>
+    <p style="margin:0 0 16px;font-size:12px;color:#475569;line-height:1.6;">Over 26 weeks: <strong>${totalCompleted} items</strong> completed (${storiesCompleted} stories, ${fmt(totalPts)} pts), defect density <strong>${defectDensity}%</strong>. ${parseFloat(unplannedRatio || "0") < 20 ? `Unplanned work low at ${unplannedRatio}%.` : `Unplanned work at ${unplannedRatio}% — worth monitoring.`} ${agingCount > 0 ? `${agingCount} items aging.` : "Backlog is clean."}</p>
 
-    <table style="border-collapse:separate;border-spacing:6px 0;width:100%;table-layout:fixed;margin-bottom:16px;">
+    <table style="border-collapse:separate;border-spacing:4px 0;width:100%;table-layout:fixed;margin-bottom:4px;">
       <tr>
-      ${metricBox(ptsThisMonth, "Story Pts", ptsTrend)}
-      ${metricBox(storiesThisMonth, "Stories Done", storiesTrend)}
-      ${metricBox(storiesInProgress, "Stories In Prog")}
-      ${metricBox(bugsTrend?.currentVal ?? totalBugs, "Bugs Filed", bugsTrend)}
+      ${metricBox(fmt(ptsThisMonth), "Story Pts", ptsTrend, fmt(ptsPriorMonth))}
+      ${metricBox(storiesThisMonth, "Stories Done", storiesTrend, storiesPriorMonth)}
+      ${metricBox(storiesInProgress, "In Progress")}
+      ${metricBox(bugsTrend?.currentVal ?? totalBugs, "Bugs Filed", bugsTrend, bugsTrend?.priorVal)}
       ${metricBox(lastMonthDensity + "%", "Defect Density", densityTrend)}
-      ${metricBox(unplannedTrend?.currentVal ?? unplannedCount, "Unplanned", unplannedTrend)}
+      ${metricBox(unplannedTrend?.currentVal ?? unplannedCount, "Unplanned", unplannedTrend, unplannedTrend?.priorVal)}
       </tr>
     </table>
 
-    <p style="font-size:11px;color:#94a3b8;margin:0 0 4px;">26-week totals: ${totalCompleted} items completed &middot; ${storiesCompleted} stories &middot; ${totalPts} story pts &middot; ${totalBugs} bugs &middot; ${agingCount} aging items</p>
+    <p style="font-size:10px;color:#cbd5e1;margin:8px 0 0;">26-week totals: ${totalCompleted} items &middot; ${storiesCompleted} stories &middot; ${fmt(totalPts)} pts &middot; ${totalBugs} bugs</p>
 
     <!-- ═══ PILLAR I : DELIVERY ═══ -->
-    ${pillar("I", "Delivery Performance", "#4f46e5", "How much work is getting done, how fast, and at what cadence.")}
+    ${pillar("I", "Delivery Performance", "#4f46e5", "Output cadence, velocity, and cycle time.", deliveryScore)}
 
-    ${metric("Throughput", `${totalCompleted} items completed — distribution by issue type.`)}
-    ${barChart(typePct, "#4f46e5", "%")}
-    <h4 style="margin:12px 0 2px;font-size:13px;color:#374151;">Monthly Throughput</h4>
+    ${metric("Throughput", `${totalCompleted} items completed — by type.`, throughputGrade)}
+    ${typeDistributionBar(typeBreakdown)}
+    <h4 style="margin:10px 0 2px;font-size:12px;font-weight:700;color:#475569;">Monthly Throughput</h4>
     ${throughput ? monthlyTrendChart(throughput.rows, "Resolved", "#6366f1") : ""}
 
-    ${metric("Velocity", `${totalPts} story points across ${sprintVelocity.size} sprints.`)}
+    ${metric("Velocity", `${fmt(totalPts)} pts across ${sprintVelocity.size} sprints.`, velocityGrade)}
     ${sprintVelocity.size > 0 ? (() => {
       const stabilityLabel = velocityCV < 0.25 ? "Stable" : velocityCV < 0.4 ? "Moderate" : "Volatile";
-      return `<div style="margin:8px 0;">
-        <div style="display:inline-block;background:#f1f5f9;border-radius:8px;padding:12px 20px;text-align:center;min-width:90px;margin-right:8px;">
-          <div style="font-size:24px;font-weight:700;color:#8b5cf6;">${avgVelocity}</div>
-          <div style="font-size:11px;color:#64748b;margin-top:2px;">Avg Pts/Sprint</div>
-        </div>
-        <div style="display:inline-block;background:#f1f5f9;border-radius:8px;padding:12px 20px;text-align:center;min-width:90px;margin-right:8px;">
-          <div style="font-size:24px;font-weight:700;color:#8b5cf6;">${Math.round(velocityStdDev)}</div>
-          <div style="font-size:11px;color:#64748b;margin-top:2px;">Std Dev</div>
-        </div>
-        <div style="display:inline-block;background:#f1f5f9;border-radius:8px;padding:12px 20px;text-align:center;min-width:90px;">
-          <div style="font-size:24px;font-weight:700;color:${velocityCV < 0.25 ? "#16a34a" : velocityCV < 0.4 ? "#f59e0b" : "#dc2626"};">${stabilityLabel}</div>
-          <div style="font-size:11px;color:#64748b;margin-top:2px;">Stability</div>
-        </div>
-      </div>`;
+      const stabilityColor = velocityCV < 0.25 ? "#16a34a" : velocityCV < 0.4 ? "#eab308" : "#dc2626";
+      return `<table style="border-collapse:separate;border-spacing:6px 0;width:100%;table-layout:fixed;margin:8px 0;">
+        <tr>
+          <td style="text-align:center;padding:0;">
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 8px;">
+              <div style="font-size:22px;font-weight:800;color:#8b5cf6;">${avgVelocity}</div>
+              <div style="font-size:9px;color:#94a3b8;margin-top:2px;">Avg Pts/Sprint</div>
+            </div>
+          </td>
+          <td style="text-align:center;padding:0;">
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 8px;">
+              <div style="font-size:22px;font-weight:800;color:#8b5cf6;">${Math.round(velocityStdDev)}</div>
+              <div style="font-size:9px;color:#94a3b8;margin-top:2px;">Std Dev</div>
+            </div>
+          </td>
+          <td style="text-align:center;padding:0;">
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 8px;">
+              <div style="font-size:22px;font-weight:800;color:${stabilityColor};">${stabilityLabel}</div>
+              <div style="font-size:9px;color:#94a3b8;margin-top:2px;">Stability</div>
+            </div>
+          </td>
+        </tr>
+      </table>`;
     })() : ""}
-    <h4 style="margin:12px 0 2px;font-size:13px;color:#374151;">Points per Sprint</h4>
-    ${sprintVelocity.size > 0 ? columnChart(sprintVelocity, "#8b5cf6", " pts") : '<p style="color:#94a3b8;font-size:12px;">No sprint data available.</p>'}
+    <h4 style="margin:10px 0 2px;font-size:12px;font-weight:700;color:#475569;">Points per Sprint</h4>
+    ${sprintVelocity.size > 0 ? columnChart(sprintVelocity, "#8b5cf6") : '<p style="color:#94a3b8;font-size:11px;">No sprint data.</p>'}
 
-    ${metric("Cycle Time", `${ctCount} items measured — ${hasTrueCycleTime ? "In Progress → Done" : "Created → Done (lead time)"}.`)}
-    ${ctCount > 0 ? `<div style="margin:8px 0;">
-      <div style="display:inline-block;background:#f1f5f9;border-radius:8px;padding:12px 20px;text-align:center;min-width:90px;margin-right:8px;">
-        <div style="font-size:24px;font-weight:700;color:#4f46e5;">${ctAvg}d</div>
-        <div style="font-size:11px;color:#64748b;margin-top:2px;">Average</div>
-      </div>
-      <div style="display:inline-block;background:#f1f5f9;border-radius:8px;padding:12px 20px;text-align:center;min-width:90px;margin-right:8px;">
-        <div style="font-size:24px;font-weight:700;color:#4f46e5;">${ctMedian}d</div>
-        <div style="font-size:11px;color:#64748b;margin-top:2px;">Median</div>
-      </div>
-      <div style="display:inline-block;background:#f1f5f9;border-radius:8px;padding:12px 20px;text-align:center;min-width:90px;margin-right:8px;">
-        <div style="font-size:24px;font-weight:700;color:#f59e0b;">${ctP90}d</div>
-        <div style="font-size:11px;color:#64748b;margin-top:2px;">90th Pctl</div>
-      </div>
-      <div style="display:inline-block;background:#f1f5f9;border-radius:8px;padding:12px 20px;text-align:center;min-width:90px;">
-        <div style="font-size:24px;font-weight:700;color:#94a3b8;">${ctMin}–${ctMax}d</div>
-        <div style="font-size:11px;color:#64748b;margin-top:2px;">Range</div>
-      </div>
-    </div>` : '<p style="color:#94a3b8;font-size:12px;">No cycle time data available.</p>'}
+    ${metric("Cycle Time", `${ctCount} items — ${hasTrueCycleTime ? "In Progress → Done" : "Created → Done (lead time)"}. All values in days.`, cycleTimeGrade)}
+    ${ctCount > 0 ? `<table style="border-collapse:separate;border-spacing:6px 0;width:100%;table-layout:fixed;margin:8px 0;">
+      <tr>
+        <td style="width:25%;text-align:center;padding:0;">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 6px;">
+            <div style="font-size:22px;font-weight:800;color:#4f46e5;">${fmt(ctAvg)}</div>
+            <div style="font-size:9px;color:#94a3b8;margin-top:2px;">Avg (days)</div>
+          </div>
+        </td>
+        <td style="width:25%;text-align:center;padding:0;">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 6px;">
+            <div style="font-size:22px;font-weight:800;color:#4f46e5;">${fmt(ctMedian)}</div>
+            <div style="font-size:9px;color:#94a3b8;margin-top:2px;">Median (days)</div>
+            ${ctTrend.direction !== "flat" ? `<div style="margin-top:3px;"><span style="font-size:9px;font-weight:600;color:${ctTrend.isGood ? "#16a34a" : "#dc2626"};">${ctTrend.direction === "up" ? "&uarr;" : "&darr;"} ${fmt(Math.abs(ctTrend.delta))}d</span></div>` : ""}
+          </div>
+        </td>
+        <td style="width:25%;text-align:center;padding:0;">
+          <div style="background:${ctP90 > 20 ? "#fef2f2" : ctP90 > 10 ? "#fffbeb" : "#fff"};border:1px solid ${ctP90 > 20 ? "#fecaca" : ctP90 > 10 ? "#fde68a" : "#e2e8f0"};border-radius:10px;padding:14px 6px;">
+            <div style="font-size:22px;font-weight:800;color:${ctP90 > 20 ? "#dc2626" : ctP90 > 10 ? "#eab308" : "#4f46e5"};">${fmt(ctP90)}</div>
+            <div style="font-size:9px;color:#94a3b8;margin-top:2px;">P90 (days)</div>
+          </div>
+        </td>
+        <td style="width:25%;text-align:center;padding:0;">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 6px;">
+            <div style="font-size:22px;font-weight:800;color:#94a3b8;">${fmt(ctMin)}–${fmt(ctMax)}</div>
+            <div style="font-size:9px;color:#94a3b8;margin-top:2px;">Range (days)</div>
+          </div>
+        </td>
+      </tr>
+    </table>
+    <p style="font-size:10px;color:#94a3b8;margin:4px 0 0;line-height:1.4;">
+      <strong style="color:#64748b;">P90:</strong> 90% of items finish within ${fmt(ctP90)} days. ${ctP90 > 20 ? '<span style="color:#dc2626;">High — investigate blockers.</span>' : ctP90 > 10 ? '<span style="color:#eab308;">Moderate.</span>' : '<span style="color:#16a34a;">Healthy.</span>'}
+      ${ctTrend.direction !== "flat" ? ` Median <strong style="color:${ctTrend.isGood ? "#16a34a" : "#dc2626"};">${ctTrend.direction === "up" ? "increasing" : "decreasing"}</strong> (${fmt(ctThisMedian)}d → ${fmt(ctPriorMedian)}d prior).` : ""}
+    </p>` : '<p style="color:#94a3b8;font-size:11px;">No cycle time data.</p>'}
     ${cycleTime ? criticalItemsTable(cycleTime.rows, ["Key", "Summary", "Priority", "Assignee", "Resolved"]) : ""}
 
     ${insights(deliveryGood, deliveryImprove)}
 
     <!-- ═══ PILLAR II : QUALITY ═══ -->
-    ${pillar("II", "Quality", "#e05252", "Defect rates, production escapes, regressions, and rework — lower is better.")}
+    ${pillar("II", "Quality", "#e05252", "Defect rates, escapes, regressions, rework — lower is better.", qualityScore)}
 
-    ${metric("Defect Count & Density", `${totalBugs} bugs filed — ${defectDensity}% of all completed work.`)}
+    ${metric("Defect Count & Density", `${totalBugs} bugs — ${defectDensity}% of completed work.`, defectDensityGrade)}
     ${allBugs ? monthlyTrendChart(allBugs.rows, "Created", "#e05252") : ""}
     ${allBugs ? criticalItemsTable(allBugs.rows, ["Key", "Summary", "Priority", "Status", "Created"]) : ""}
 
-    ${metric("Defect Escape Rate", `${prodBugs?.issueCount || 0} bugs reached production.`)}
+    ${metric("Escape Rate", `${prodBugs?.issueCount || 0} bugs reached prod (${fmt(escapeRate)}%). Escape = prod bugs ÷ completed.`, escapeRateGrade)}
     ${
       prodBugs && prodBugs.issueCount > 0
         ? criticalItemsTable(prodBugs.rows, ["Key", "Summary", "Priority", "Created"])
-        : '<p style="color:#16a34a;font-size:12px;">No production escapes found.</p>'
+        : '<p style="color:#16a34a;font-size:11px;">No production escapes.</p>'
     }
 
-    ${metric("Regression Rate", `${regressions?.issueCount || 0} previously working features broke after a change.`)}
+    ${metric("Regressions", `${regressions?.issueCount || 0} features broke after changes (${fmt(regressionRate)}%). Bugs labeled "regression".`, regressionGrade)}
     ${regressions ? criticalItemsTable(regressions.rows, ["Key", "Summary", "Priority", "Created"]) : ""}
 
-    ${metric("Rework Rate", `${rework?.issueCount || 0} issues reopened after "Done" — signals missed requirements or premature closure.`)}
-    ${rework && rework.issueCount > 0 ? barChart(countBy(rework.rows, "Issue Type"), "#f97316") : ""}
+    ${metric("Rework", `${rework?.issueCount || 0} reopened after Done (${fmt(reworkRate)}%). Items whose status reverted from Done.`, reworkGrade)}
+    ${rework && rework.issueCount > 0 ? (() => {
+      const reworkByType = countBy(rework.rows, "Issue Type");
+      return typeDistributionBar(reworkByType);
+    })() : ""}
 
     ${insights(qualityGood, qualityImprove)}
 
     <!-- ═══ PILLAR III : FLOW ═══ -->
-    ${pillar("III", "Flow Efficiency", "#f59e0b", "Work-in-progress levels, blockers, and unplanned interruptions that affect throughput.")}
+    ${pillar("III", "Flow Efficiency", "#f59e0b", "WIP, blockers, and unplanned interruptions.", flowScore)}
 
-    ${metric("Work in Progress", `${wip?.issueCount || 0} items currently active — high WIP slows cycle time.`)}
+    ${metric("Work in Progress", `${wipCount} items active.`)}
     ${wip ? (() => {
       const byType = countBy(wip.rows, "Issue Type");
-      return barChart(byType, "#f59e0b");
+      return typeDistributionBar(byType);
     })() : ""}
     ${wip ? criticalItemsTable(wip.rows, ["Key", "Summary", "Priority", "Issue Type", "Assignee"]) : ""}
 
-    ${metric("Planned vs Unplanned", `${unplannedRatio}% of completed work was reactive (bugs/incidents).`)}
+    ${metric("Planned vs Unplanned", `${unplannedRatio}% reactive (bugs/incidents).`)}
     ${stackedBar([
       { label: "Planned", pct: 100 - parseFloat(unplannedRatio || "0"), color: "#4f46e5" },
       { label: "Unplanned", pct: parseFloat(unplannedRatio || "0"), color: "#f97316" },
     ])}
 
-    ${metric("Cross-Team Dependencies", `${blocked?.issueCount || 0} issues entered "Blocked" status due to external dependencies.`)}
+    ${metric("Dependencies", `${blocked?.issueCount || 0} items entered Blocked status.`)}
     ${blocked ? criticalItemsTable(blocked.rows, ["Key", "Summary", "Priority", "Assignee", "Updated"]) : ""}
 
     ${insights(flowGood, flowImprove)}
 
     <!-- ═══ PILLAR IV : BACKLOG HEALTH ═══ -->
-    ${pillar("IV", "Backlog Health", "#4f46e5", "Pipeline readiness, research investment, and stale items that need attention.")}
+    ${pillar("IV", "Backlog Health", "#4f46e5", "Pipeline readiness, grooming, and stale items.", backlogScore)}
 
-    ${metric("Backlog Readiness", `${backlog?.issueCount || 0} groomed items ready to pull into a sprint.`)}
-    ${backlog ? barChart(countBy(backlog.rows, "Issue Type"), "#4f46e5") : ""}
+    ${metric("Pipeline by Stage", `${totalPipeline} open items across stages. ${groomedRate}% ready, ${inProgressRate}% in progress.`)}
+    <table style="border-collapse:separate;border-spacing:6px 0;width:100%;table-layout:fixed;margin:8px 0;">
+      <tr>
+      ${stageCard("Ready for Dev", readyCount, "#16a34a", readyCount < 5 ? "Low" : readyCount >= 15 ? "Healthy" : undefined)}
+      ${stageCard("In Progress", wipCount, "#4f46e5")}
+      ${stageCard("Blocked", blockedCount, "#dc2626", blockedCount > 0 ? "Action needed" : undefined)}
+      ${stageCard("Discovery", discoveryCount, "#059669", discoveryCount > 0 ? "Completed" : "None")}
+      </tr>
+    </table>
 
-    ${metric("Discovery & Investigation", `${discovery?.issueCount || 0} spikes/research items completed — reducing future uncertainty.`)}
+    ${metric("Backlog Readiness", `${readyCount} groomed items ready to pull.`)}
+    ${backlog && backlog.issueCount > 0 ? (() => {
+      const byType = countBy(backlog.rows, "Issue Type");
+      return typeDistributionBar(byType);
+    })() : '<p style="color:#94a3b8;font-size:11px;">No items in Ready for Development.</p>'}
 
     ${metric("Aging Backlog", `${agingCount} items with no activity for 30+ days.`)}
-    ${agingCount > 0
-      ? statPair(
-          agingAvgDays + "d", "Avg Age",
-          agingOver90, "Over 90 Days",
-          "#94a3b8"
-        )
-      : '<p style="color:#16a34a;font-size:12px;">No aging items.</p>'
-    }
+    ${agingCount > 0 ? `<table style="border-collapse:separate;border-spacing:6px 0;width:100%;table-layout:fixed;margin:8px 0;">
+      <tr>
+        ${stageCard("30–60 days", aging30to60, "#eab308")}
+        ${stageCard("60–90 days", aging60to90, "#f97316")}
+        ${stageCard("90+ days", agingOver90, "#dc2626", agingOver90 > 0 ? "Stale" : undefined)}
+        ${stageCard("Avg Age", agingAvgDays, "#94a3b8", "days")}
+      </tr>
+    </table>` : '<p style="color:#16a34a;font-size:11px;">No aging items.</p>'}
 
     ${insights(backlogGood, backlogImprove)}
 
-    <div style="margin-top:28px;padding-top:16px;border-top:1px solid #e2e8f0;text-align:center;">
-      <div style="font-size:14px;font-weight:700;letter-spacing:1.5px;color:#4f46e5;text-transform:uppercase;margin-bottom:4px;">&#9993; Mailcraft</div>
-      <div style="font-size:11px;color:#94a3b8;">${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</div>
+    <!-- Footer -->
+    <div style="margin-top:24px;padding-top:14px;border-top:1px solid #e2e8f0;text-align:center;">
+      <div style="font-size:13px;font-weight:800;letter-spacing:2px;color:#4f46e5;text-transform:uppercase;">&#9993; Mailcraft</div>
+      <div style="font-size:10px;color:#cbd5e1;margin-top:2px;">${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</div>
     </div>
   </div>
 </div>`;
