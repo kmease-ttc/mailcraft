@@ -1,5 +1,5 @@
-import type { CsvRow } from "@shared/types";
-import type { JiraQueryResult } from "@shared/types";
+import type { CsvRow, JiraQueryResult } from "@shared/types";
+import { REPORT_QUERY_IDS } from "@shared/reportManifest";
 
 /* ── helpers ─────────────────────────────────────────────────── */
 
@@ -320,6 +320,15 @@ function statPair(
 export function buildFullReport(
   results: JiraQueryResult[]
 ): string {
+  // Validate: warn if any manifest-defined query is missing from results
+  const resultIds = new Set(results.map((r) => r.queryId));
+  const missing = REPORT_QUERY_IDS.filter((id) => !resultIds.has(id));
+  if (missing.length > 0) {
+    console.warn(
+      `[reportBuilder] Missing query results for: ${missing.join(", ")}. Report may be incomplete.`
+    );
+  }
+
   const find = (id: string) => results.find((r) => r.queryId === id);
 
   const throughput = find("throughput");

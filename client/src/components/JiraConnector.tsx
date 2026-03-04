@@ -97,7 +97,7 @@ export function JiraConnector({ onParsed }: Props) {
     if (selectedIds.size === REPORT_SECTIONS.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(JIRA_QUERIES.map((q) => q.id)));
+      setSelectedIds(new Set(REPORT_SECTIONS.map((s) => s.id)));
     }
   };
 
