@@ -71,7 +71,40 @@ function barChart(
   return `<table style="border-collapse:collapse;width:100%;margin:8px 0;">${rows}</table>`;
 }
 
-/** Build a monthly trend bar chart */
+/** Build a column chart with horizontal time axis (time flows left→right) */
+function columnChart(
+  data: Map<string, number>,
+  color = "#4f46e5",
+  suffix = ""
+): string {
+  const max = Math.max(...data.values(), 1);
+  const entries = [...data.entries()];
+  if (entries.length === 0) return "";
+
+  const cols = entries
+    .map(
+      ([label, count]) => `
+      <td style="vertical-align:bottom;text-align:center;padding:0 2px;">
+        <div style="font-size:10px;font-weight:600;color:#1e293b;margin-bottom:2px;">${count}${suffix}</div>
+        <div style="background:${color};height:${Math.max(Math.round((count / max) * 120), 4)}px;border-radius:3px 3px 0 0;margin:0 auto;max-width:48px;min-width:16px;"></div>
+      </td>`
+    )
+    .join("");
+
+  const labels = entries
+    .map(
+      ([label]) =>
+        `<td style="text-align:center;padding:4px 2px 0;font-size:10px;color:#64748b;white-space:nowrap;">${label}</td>`
+    )
+    .join("");
+
+  return `<table style="border-collapse:collapse;width:100%;margin:8px 0;">
+    <tr>${cols}</tr>
+    <tr style="border-top:1px solid #e2e8f0;">${labels}</tr>
+  </table>`;
+}
+
+/** Build a monthly trend column chart (horizontal time axis) */
 function monthlyTrendChart(
   rows: CsvRow[],
   dateCol: string,
@@ -88,7 +121,7 @@ function monthlyTrendChart(
     data.set(label, items.length);
   }
 
-  return barChart(data, color);
+  return columnChart(data, color);
 }
 
 /** Build a compact HTML data table (only used for critical items) */
@@ -127,16 +160,24 @@ function dataTable(
   return html;
 }
 
+/** Statuses considered closed/resolved */
+const DONE_STATUSES = new Set(["done", "closed", "cancelled", "resolved"]);
+
+function isDone(row: CsvRow): boolean {
+  const s = (row["Status"] || "").toLowerCase().trim();
+  return DONE_STATUSES.has(s);
+}
+
 /**
- * Show a critical-items table ONLY if there are P0/P1 issues.
- * Returns empty string if no critical items exist.
+ * Show a critical-items table ONLY if there are open P0/P1 issues.
+ * Filters out Done/Closed/Cancelled — only surfaces issues needing attention.
  */
 function criticalItemsTable(rows: CsvRow[], columns: string[]): string {
-  const critical = rows.filter(isCritical);
+  const critical = rows.filter((r) => isCritical(r) && !isDone(r));
   if (critical.length === 0) return "";
 
   return `
-    <p style="margin:8px 0 4px;font-size:12px;font-weight:600;color:#dc2626;">&#9888; ${critical.length} critical-priority item${critical.length > 1 ? "s" : ""} (P0/P1):</p>
+    <p style="margin:8px 0 4px;font-size:12px;font-weight:600;color:#dc2626;">&#9888; ${critical.length} open critical-priority item${critical.length > 1 ? "s" : ""} (P0/P1):</p>
     ${dataTable(critical, columns, 10)}`;
 }
 
@@ -624,7 +665,7 @@ export function buildFullReport(
       </div>`;
     })() : ""}
     <h4 style="margin:12px 0 2px;font-size:13px;color:#374151;">Points per Sprint</h4>
-    ${sprintVelocity.size > 0 ? barChart(sprintVelocity, "#8b5cf6", " pts") : '<p style="color:#94a3b8;font-size:12px;">No sprint data available.</p>'}
+    ${sprintVelocity.size > 0 ? columnChart(sprintVelocity, "#8b5cf6", " pts") : '<p style="color:#94a3b8;font-size:12px;">No sprint data available.</p>'}
 
     ${metric("Cycle Time", `${ctCount} items measured — ${hasTrueCycleTime ? "In Progress → Done" : "Created → Done (lead time)"}.`)}
     ${ctCount > 0 ? `<div style="margin:8px 0;">
