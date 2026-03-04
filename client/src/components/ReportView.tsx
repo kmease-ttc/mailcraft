@@ -181,10 +181,10 @@ export function ReportView() {
       {/* Header + Actions */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">
+          <h2 className="text-xl font-semibold text-white">
             SDLC Metrics Report
           </h2>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-white/50">
             {fetched
               ? `${totalIssues} total issues across ${results.length} queries${queryErrors ? ` (${queryErrors} errors)` : ""}`
               : "Fetch data from JIRA to generate the report"}
@@ -195,7 +195,7 @@ export function ReportView() {
           {fetched && (
             <button
               onClick={() => setMode(mode === "preview" ? "edit" : "preview")}
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm glass-card-hover text-white/70 hover:text-white transition-colors"
             >
               {mode === "preview" ? (
                 <>
@@ -211,7 +211,7 @@ export function ReportView() {
           <button
             onClick={handleFetchAll}
             disabled={fetching}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors font-medium"
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-indigo-500/80 backdrop-blur-sm text-white rounded-lg hover:bg-indigo-500 disabled:opacity-50 transition-colors font-medium border border-indigo-400/30"
           >
             {fetching ? (
               <>
@@ -234,7 +234,7 @@ export function ReportView() {
       </div>
 
       {fetchError && (
-        <div className="flex items-center gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+        <div className="flex items-center gap-2 px-4 py-3 glass-card bg-red-500/10 border-red-400/20 text-sm text-red-300">
           <XCircle className="w-4 h-4 shrink-0" />
           {fetchError}
         </div>
@@ -242,18 +242,18 @@ export function ReportView() {
 
       {/* Query status grid (shown while/after fetching) */}
       {fetched && (
-        <div className="grid grid-cols-2 gap-1.5">
+        <div className="grid grid-cols-2 gap-2">
           {results.map((r) => (
             <div
               key={r.queryId}
-              className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs ${
+              className={`flex items-center justify-between px-3 py-3 glass-card min-h-[44px] text-xs ${
                 r.error
-                  ? "bg-red-50 text-red-700"
-                  : "bg-gray-50 text-gray-700"
+                  ? "bg-red-500/10 border-red-400/20 text-red-300"
+                  : "text-white/70"
               }`}
             >
               <span className="truncate">{r.metrics}</span>
-              <span className="font-semibold ml-2 shrink-0">
+              <span className="font-semibold ml-2 shrink-0 text-white">
                 {r.error ? "Error" : `${r.issueCount}`}
               </span>
             </div>
@@ -262,8 +262,8 @@ export function ReportView() {
       )}
 
       {/* Recipients */}
-      <div className="bg-white border border-gray-200 rounded-lg px-4 py-3">
-        <label className="block text-xs font-medium text-gray-500 mb-1">
+      <div className="glass-input px-4 py-3">
+        <label className="block text-xs font-medium text-white/40 mb-1">
           To (comma-separated)
         </label>
         <input
@@ -271,27 +271,27 @@ export function ReportView() {
           value={recipients}
           onChange={(e) => setRecipients(e.target.value)}
           placeholder="stakeholder@company.com, manager@company.com"
-          className="w-full text-sm outline-none"
+          className="w-full text-sm outline-none bg-transparent text-white placeholder:text-white/30"
         />
       </div>
 
       {/* Subject */}
-      <div className="bg-white border border-gray-200 rounded-lg px-4 py-3">
-        <label className="block text-xs font-medium text-gray-500 mb-1">
+      <div className="glass-input px-4 py-3">
+        <label className="block text-xs font-medium text-white/40 mb-1">
           Subject
         </label>
         <input
           type="text"
           value={subject}
           onChange={(e) => setSubject(e.target.value)}
-          className="w-full text-sm font-medium outline-none"
+          className="w-full text-sm font-medium outline-none bg-transparent text-white"
         />
       </div>
 
       {/* Email body */}
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+      <div className="glass-card overflow-hidden">
         {!fetched ? (
-          <div className="flex flex-col items-center justify-center py-24 text-gray-400">
+          <div className="flex flex-col items-center justify-center py-24 text-white/30">
             <Database className="w-12 h-12 mb-3" />
             <p className="text-lg font-medium">No data yet</p>
             <p className="text-sm">
@@ -302,11 +302,11 @@ export function ReportView() {
           <textarea
             value={customHtml || reportHtml}
             onChange={(e) => setCustomHtml(e.target.value)}
-            className="w-full p-4 font-mono text-xs outline-none min-h-[600px] resize-y"
+            className="w-full p-4 font-mono text-xs outline-none min-h-[600px] resize-y bg-transparent text-white/80"
           />
         ) : (
           <div
-            className="p-2"
+            className="p-2 bg-white rounded-xl"
             dangerouslySetInnerHTML={{ __html: displayHtml }}
           />
         )}
@@ -317,15 +317,15 @@ export function ReportView() {
         <div className="flex items-center gap-3">
           {/* Save Report */}
           {savedReportId ? (
-            <div className="flex items-center gap-1.5 text-sm text-gray-500">
-              <CheckCircle className="w-4 h-4 text-green-500" />
+            <div className="flex items-center gap-1.5 text-sm text-white/50">
+              <CheckCircle className="w-4 h-4 text-green-400" />
               Saved
             </div>
           ) : (
             <button
               onClick={handleSaveReport}
               disabled={saving || !fetchRunId}
-              className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-colors text-sm font-medium"
+              className="inline-flex items-center gap-2 px-4 py-2.5 glass-card-hover disabled:opacity-40 transition-colors text-sm font-medium text-white/70 hover:text-white"
             >
               {saving ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -338,7 +338,7 @@ export function ReportView() {
 
           {/* Send */}
           {sent ? (
-            <div className="flex items-center gap-2 text-green-600 font-medium">
+            <div className="flex items-center gap-2 text-green-400 font-medium">
               <CheckCircle className="w-5 h-5" />
               Sent successfully!
             </div>
@@ -346,7 +346,7 @@ export function ReportView() {
             <button
               onClick={handleSend}
               disabled={sending || !recipients.trim()}
-              className="inline-flex items-center gap-2 px-6 py-2.5 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium"
+              className="inline-flex items-center gap-2 px-6 py-2.5 bg-indigo-500/80 backdrop-blur-sm text-white rounded-lg hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium border border-indigo-400/30"
             >
               {sending ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -357,7 +357,7 @@ export function ReportView() {
             </button>
           )}
           {sendError && (
-            <span className="text-sm text-red-500">{sendError}</span>
+            <span className="text-sm text-red-400">{sendError}</span>
           )}
         </div>
       )}

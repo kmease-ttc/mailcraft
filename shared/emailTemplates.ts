@@ -11,7 +11,7 @@ const STYLE = `
 <style>
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1e293b; line-height: 1.6; }
   table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 13px; }
-  th { background: #1e293b; color: #fff; padding: 10px 12px; text-align: left; font-weight: 600; }
+  th { background: #475569; color: #fff; padding: 10px 12px; text-align: left; font-weight: 600; }
   td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; }
   tr:nth-child(even) td { background: #f8fafc; }
   .metric-box { display: inline-block; background: #f1f5f9; border-radius: 8px; padding: 12px 20px; margin: 4px 8px 4px 0; text-align: center; }

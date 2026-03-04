@@ -6,31 +6,31 @@ import { ScheduleManager } from "./components/ScheduleManager";
 export default function App() {
   return (
     <div className="min-h-screen">
-      <header className="bg-white border-b border-gray-200 px-6 py-4">
-        <h1 className="text-2xl font-bold text-gray-900">Mailcraft</h1>
-        <p className="text-sm text-gray-500">
+      <header className="glass-panel border-b border-white/10 px-6 py-4">
+        <h1 className="text-2xl font-bold text-white">MRI Software</h1>
+        <p className="text-sm text-white/50">
           JIRA metrics &rarr; formatted emails
         </p>
       </header>
 
       <main className="max-w-5xl mx-auto p-6">
         <Tabs.Root defaultValue="report">
-          <Tabs.List className="flex gap-1 mb-6 border-b border-gray-200">
+          <Tabs.List className="flex gap-1 mb-6 border-b border-white/10">
             <Tabs.Trigger
               value="report"
-              className="px-4 py-2.5 text-sm font-medium border-b-2 -mb-px data-[state=active]:border-indigo-500 data-[state=active]:text-indigo-600 border-transparent text-gray-500 hover:text-gray-700 transition-colors"
+              className="px-4 py-2.5 text-sm font-medium border-b-2 -mb-px data-[state=active]:border-indigo-400 data-[state=active]:text-indigo-300 border-transparent text-white/50 hover:text-white/70 transition-colors"
             >
               New Report
             </Tabs.Trigger>
             <Tabs.Trigger
               value="history"
-              className="px-4 py-2.5 text-sm font-medium border-b-2 -mb-px data-[state=active]:border-indigo-500 data-[state=active]:text-indigo-600 border-transparent text-gray-500 hover:text-gray-700 transition-colors"
+              className="px-4 py-2.5 text-sm font-medium border-b-2 -mb-px data-[state=active]:border-indigo-400 data-[state=active]:text-indigo-300 border-transparent text-white/50 hover:text-white/70 transition-colors"
             >
               History
             </Tabs.Trigger>
             <Tabs.Trigger
               value="schedules"
-              className="px-4 py-2.5 text-sm font-medium border-b-2 -mb-px data-[state=active]:border-indigo-500 data-[state=active]:text-indigo-600 border-transparent text-gray-500 hover:text-gray-700 transition-colors"
+              className="px-4 py-2.5 text-sm font-medium border-b-2 -mb-px data-[state=active]:border-indigo-400 data-[state=active]:text-indigo-300 border-transparent text-white/50 hover:text-white/70 transition-colors"
             >
               Schedules
             </Tabs.Trigger>

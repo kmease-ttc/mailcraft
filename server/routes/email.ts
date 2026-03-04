@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { SendEmailRequest, SendEmailResult } from "../../shared/types.js";
-import { sendEmail } from "../services/resend.js";
+import { sendEmail } from "../services/sendgrid.js";
 import { db } from "../db/index.js";
 import { emailLog } from "../db/schema.js";
 

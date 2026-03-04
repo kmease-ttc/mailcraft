@@ -48,7 +48,7 @@ function sumBy(rows: CsvRow[], groupField: string, sumField: string): Map<string
 const ISSUE_TYPE_COLORS: Record<string, string> = {
   initiative: "#1e40af",
   epic: "#7c3aed",
-  story: "#4f46e5",
+  story: "#007eb4",
   task: "#0891b2",
   bug: "#dc2626",
   "sub-task": "#64748b",
@@ -107,7 +107,7 @@ function isCritical(row: CsvRow): boolean {
 /** Column chart — fits within email width via table-layout:fixed */
 function columnChart(
   data: Map<string, number>,
-  color = "#4f46e5",
+  color = "#009add",
   suffix = ""
 ): string {
   const max = Math.max(...data.values(), 1);
@@ -141,7 +141,7 @@ function columnChart(
 function monthlyTrendChart(
   rows: CsvRow[],
   dateCol: string,
-  color = "#4f46e5"
+  color = "#009add"
 ): string {
   const byMonth = groupByMonth(rows, dateCol);
   if (byMonth.size === 0) return "";
@@ -169,7 +169,7 @@ function dataTable(
   const ths = columns
     .map(
       (c) =>
-        `<th style="background:#0f172a;color:#fff;padding:8px 10px;text-align:left;font-size:11px;font-weight:600;">${c}</th>`
+        `<th style="background:#044d66;color:#fff;padding:8px 10px;text-align:left;font-size:11px;font-weight:600;">${c}</th>`
     )
     .join("");
 
@@ -438,6 +438,7 @@ export function buildFullReport(
   const discovery = find("discovery");
   const blocked = find("blocked");
   const aging = find("aging_backlog");
+  const stageDist = find("stage_distribution");
 
   // Derived metrics
   const totalCompleted = throughput?.issueCount || 0;
@@ -632,6 +633,32 @@ export function buildFullReport(
       }).length
     : 0;
 
+  // Stage distribution — group all open items by status
+  const stageMap = new Map<string, number>();
+  const stageAgingMap = new Map<string, number>(); // count of items 30+ days old per stage
+  const GROOMED_STAGES = new Set(["ready for development", "ready for dev", "ready", "groomed", "refined", "selected for development"]);
+  if (stageDist) {
+    for (const row of stageDist.rows) {
+      const status = row["Status"] || "Unknown";
+      stageMap.set(status, (stageMap.get(status) || 0) + 1);
+      const updated = row["Updated"];
+      if (updated) {
+        const daysSince = (Date.now() - new Date(updated).getTime()) / (1000 * 60 * 60 * 24);
+        if (daysSince >= 30) {
+          stageAgingMap.set(status, (stageAgingMap.get(status) || 0) + 1);
+        }
+      }
+    }
+  }
+  const totalOpenItems = stageDist?.issueCount || 0;
+  let agingGroomedCount = 0;
+  for (const [status, count] of stageAgingMap) {
+    if (GROOMED_STAGES.has(status.toLowerCase())) {
+      agingGroomedCount += count;
+    }
+  }
+  const totalAgingAcrossStages = [...stageAgingMap.values()].reduce((s, n) => s + n, 0);
+
   // Velocity stability
   const sprintPtsArr = [...sprintVelocity.values()];
   const velocityStdDev = sprintPtsArr.length > 1
@@ -681,11 +708,16 @@ export function buildFullReport(
 
   const backlogScore = (() => {
     let score = 0;
+    // Ready items — having groomed work available is good
     const ready = backlog?.issueCount || 0;
-    if (ready >= 15) score += 34; else if (ready >= 10) score += 25; else if (ready >= 5) score += 18; else score += 5;
+    if (ready >= 15) score += 25; else if (ready >= 10) score += 20; else if (ready >= 5) score += 15; else score += 5;
+    // Discovery work is positive — large backlog of new/discovery items is fine
     const disc = discovery?.issueCount || 0;
-    if (disc >= 5) score += 33; else if (disc > 0) score += 22; else score += 8;
-    if (agingCount === 0) score += 33; else if (agingAvgDays <= 45) score += 22; else if (agingAvgDays <= 60) score += 12; else score += 5;
+    if (disc >= 5) score += 25; else if (disc > 0) score += 20; else score += 12;
+    // Aging GROOMED backlog is critical — items ready for dev but untouched
+    if (agingGroomedCount === 0) score += 30; else if (agingGroomedCount <= 3) score += 20; else if (agingGroomedCount <= 8) score += 10; else score += 2;
+    // Overall aging across all stages (less weight — early-stage aging is less concerning)
+    if (totalAgingAcrossStages === 0) score += 20; else if (totalAgingAcrossStages <= 10) score += 15; else if (totalAgingAcrossStages <= 25) score += 10; else score += 5;
     return score;
   })();
 
@@ -775,41 +807,44 @@ export function buildFullReport(
 
   if ((backlog?.issueCount || 0) >= 10) backlogGood.push(`${backlog!.issueCount} items groomed and ready`);
   if ((backlog?.issueCount || 0) > 0 && (backlog?.issueCount || 0) < 5) backlogImprove.push(`Only ${backlog!.issueCount} items ready — backlog may run dry`);
-  if ((discovery?.issueCount || 0) > 0) backlogGood.push(`${discovery!.issueCount} research/spikes completed`);
-  if ((discovery?.issueCount || 0) === 0) backlogImprove.push("No discovery work completed");
+  if ((discovery?.issueCount || 0) > 0) backlogGood.push(`${discovery!.issueCount} research/spikes completed — healthy discovery pipeline`);
+  if (totalOpenItems > 0) backlogGood.push(`${totalOpenItems} total open items across ${stageMap.size} stages`);
+  if (agingGroomedCount === 0 && agingCount > 0) backlogGood.push("No aging items in groomed stages");
+  if (agingGroomedCount > 0) backlogImprove.push(`${agingGroomedCount} groomed items aging 30+ days — ready work sitting idle`);
   if (agingCount === 0) backlogGood.push("No stale backlog items");
   if (agingOver90 > 0) backlogImprove.push(`${agingOver90} items untouched 90+ days`);
   if (agingAvgDays > 60 && agingCount > 0) backlogImprove.push(`Average aging item is ${agingAvgDays} days old`);
-  if (agingAvgDays > 0 && agingAvgDays <= 45 && agingCount > 0) backlogGood.push(`Aging items averaging ${agingAvgDays} days`);
+  if (agingAvgDays > 0 && agingAvgDays <= 45 && agingCount > 0) backlogGood.push(`Aging items averaging ${agingAvgDays} days — manageable`);
 
   // ── Backlog pipeline data ──────────────────────────────────
   const readyCount = backlog?.issueCount || 0;
   const blockedCount = blocked?.issueCount || 0;
   const discoveryCount = discovery?.issueCount || 0;
-  const totalPipeline = readyCount + wipCount + blockedCount + agingCount;
-  const groomedRate = totalPipeline > 0
-    ? fmt((readyCount / totalPipeline) * 100)
-    : "0";
-  const inProgressRate = totalPipeline > 0
-    ? fmt((wipCount / totalPipeline) * 100)
-    : "0";
 
   /* ── HTML ───────────────────────────────────────────────────── */
 
   let html = `
-<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Inter',sans-serif;color:#0f172a;line-height:1.5;max-width:680px;margin:0 auto;">
+<div style="font-family:'Work Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#051c2a;line-height:1.5;max-width:680px;margin:0 auto;">
 
   <!-- Header -->
-  <div style="background:linear-gradient(135deg,#0f172a 0%,#1e293b 60%,#334155 100%);color:#fff;padding:32px;border-radius:16px 16px 0 0;">
-    <div style="font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,0.4);margin-bottom:4px;">Performance Report</div>
-    <h1 style="margin:0;font-size:24px;font-weight:800;letter-spacing:-0.5px;">SDLC Metrics</h1>
-    <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.08);">
+  <div style="background:linear-gradient(135deg,#051c2a 0%,#044d66 100%);color:#fff;padding:32px;border-radius:16px 16px 0 0;">
+    <table style="width:100%;border-collapse:collapse;">
+      <tr>
+        <td style="vertical-align:middle;">
+          <img src="https://welcome.saas.mrisoftware.com/Content/images/MRI_Logo_RGB_Small.png" alt="MRI Software" style="height:36px;display:block;" />
+        </td>
+        <td style="vertical-align:middle;text-align:right;">
+          <div style="font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,0.5);">SDLC Performance Report</div>
+        </td>
+      </tr>
+    </table>
+    <div style="margin-top:16px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.1);">
       <p style="margin:0;opacity:0.6;font-size:13px;">LSCI &amp; LVAIRD &nbsp;&middot;&nbsp; 26 Weeks &nbsp;&middot;&nbsp; ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</p>
     </div>
   </div>
 
   <!-- Body -->
-  <div style="background:#fafbfc;padding:24px 24px 28px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 16px 16px;">
+  <div style="background:#fafbfc;padding:24px 24px 28px;border:1px solid #cbd6e2;border-top:none;border-radius:0 0 16px 16px;">
 
     <!-- ═══ EXECUTIVE SUMMARY ═══ -->
     <h2 style="margin:0 0 2px;font-size:17px;font-weight:800;letter-spacing:-0.3px;">Executive Summary</h2>
@@ -831,12 +866,12 @@ export function buildFullReport(
     <p style="font-size:10px;color:#cbd5e1;margin:8px 0 0;">26-week totals: ${totalCompleted} items &middot; ${storiesCompleted} stories &middot; ${fmt(totalPts)} pts &middot; ${totalBugs} bugs</p>
 
     <!-- ═══ PILLAR I : DELIVERY ═══ -->
-    ${pillar("I", "Delivery Performance", "#4f46e5", "Output cadence, velocity, and cycle time.", deliveryScore)}
+    ${pillar("I", "Delivery Performance", "#009add", "Output cadence, velocity, and cycle time.", deliveryScore)}
 
     ${metric("Throughput", `${totalCompleted} items completed — by type.`, throughputGrade)}
     ${typeDistributionBar(typeBreakdown)}
     <h4 style="margin:10px 0 2px;font-size:12px;font-weight:700;color:#475569;">Monthly Throughput</h4>
-    ${throughput ? monthlyTrendChart(throughput.rows, "Resolved", "#6366f1") : ""}
+    ${throughput ? monthlyTrendChart(throughput.rows, "Resolved", "#009add") : ""}
 
     ${metric("Velocity", `${fmt(totalPts)} pts across ${sprintVelocity.size} sprints.`, velocityGrade)}
     ${sprintVelocity.size > 0 ? (() => {
@@ -846,13 +881,13 @@ export function buildFullReport(
         <tr>
           <td style="text-align:center;padding:0;">
             <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 8px;">
-              <div style="font-size:22px;font-weight:800;color:#8b5cf6;">${avgVelocity}</div>
+              <div style="font-size:22px;font-weight:800;color:#007eb4;">${avgVelocity}</div>
               <div style="font-size:9px;color:#94a3b8;margin-top:2px;">Avg Pts/Sprint</div>
             </div>
           </td>
           <td style="text-align:center;padding:0;">
             <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 8px;">
-              <div style="font-size:22px;font-weight:800;color:#8b5cf6;">${Math.round(velocityStdDev)}</div>
+              <div style="font-size:22px;font-weight:800;color:#007eb4;">${Math.round(velocityStdDev)}</div>
               <div style="font-size:9px;color:#94a3b8;margin-top:2px;">Std Dev</div>
             </div>
           </td>
@@ -866,27 +901,27 @@ export function buildFullReport(
       </table>`;
     })() : ""}
     <h4 style="margin:10px 0 2px;font-size:12px;font-weight:700;color:#475569;">Points per Sprint</h4>
-    ${sprintVelocity.size > 0 ? columnChart(sprintVelocity, "#8b5cf6") : '<p style="color:#94a3b8;font-size:11px;">No sprint data.</p>'}
+    ${sprintVelocity.size > 0 ? columnChart(sprintVelocity, "#007eb4") : '<p style="color:#94a3b8;font-size:11px;">No sprint data.</p>'}
 
     ${metric("Cycle Time", `${ctCount} items — ${hasTrueCycleTime ? "In Progress → Done" : "Created → Done (lead time)"}. All values in days.`, cycleTimeGrade)}
     ${ctCount > 0 ? `<table style="border-collapse:separate;border-spacing:6px 0;width:100%;table-layout:fixed;margin:8px 0;">
       <tr>
         <td style="width:25%;text-align:center;padding:0;">
           <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 6px;">
-            <div style="font-size:22px;font-weight:800;color:#4f46e5;">${fmt(ctAvg)}</div>
+            <div style="font-size:22px;font-weight:800;color:#009add;">${fmt(ctAvg)}</div>
             <div style="font-size:9px;color:#94a3b8;margin-top:2px;">Avg (days)</div>
           </div>
         </td>
         <td style="width:25%;text-align:center;padding:0;">
           <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 6px;">
-            <div style="font-size:22px;font-weight:800;color:#4f46e5;">${fmt(ctMedian)}</div>
+            <div style="font-size:22px;font-weight:800;color:#009add;">${fmt(ctMedian)}</div>
             <div style="font-size:9px;color:#94a3b8;margin-top:2px;">Median (days)</div>
             ${ctTrend.direction !== "flat" ? `<div style="margin-top:3px;"><span style="font-size:9px;font-weight:600;color:${ctTrend.isGood ? "#16a34a" : "#dc2626"};">${ctTrend.direction === "up" ? "&uarr;" : "&darr;"} ${fmt(Math.abs(ctTrend.delta))}d</span></div>` : ""}
           </div>
         </td>
         <td style="width:25%;text-align:center;padding:0;">
           <div style="background:${ctP90 > 20 ? "#fef2f2" : ctP90 > 10 ? "#fffbeb" : "#fff"};border:1px solid ${ctP90 > 20 ? "#fecaca" : ctP90 > 10 ? "#fde68a" : "#e2e8f0"};border-radius:10px;padding:14px 6px;">
-            <div style="font-size:22px;font-weight:800;color:${ctP90 > 20 ? "#dc2626" : ctP90 > 10 ? "#eab308" : "#4f46e5"};">${fmt(ctP90)}</div>
+            <div style="font-size:22px;font-weight:800;color:${ctP90 > 20 ? "#dc2626" : ctP90 > 10 ? "#eab308" : "#009add"};">${fmt(ctP90)}</div>
             <div style="font-size:9px;color:#94a3b8;margin-top:2px;">P90 (days)</div>
           </div>
         </td>
@@ -943,7 +978,7 @@ export function buildFullReport(
 
     ${metric("Planned vs Unplanned", `${unplannedRatio}% reactive (bugs/incidents).`)}
     ${stackedBar([
-      { label: "Planned", pct: 100 - parseFloat(unplannedRatio || "0"), color: "#4f46e5" },
+      { label: "Planned", pct: 100 - parseFloat(unplannedRatio || "0"), color: "#009add" },
       { label: "Unplanned", pct: parseFloat(unplannedRatio || "0"), color: "#f97316" },
     ])}
 
@@ -953,17 +988,41 @@ export function buildFullReport(
     ${insights(flowGood, flowImprove)}
 
     <!-- ═══ PILLAR IV : BACKLOG HEALTH ═══ -->
-    ${pillar("IV", "Backlog Health", "#4f46e5", "Pipeline readiness, grooming, and stale items.", backlogScore)}
+    ${pillar("IV", "Backlog Health", "#009add", "Pipeline readiness, grooming, and stale items.", backlogScore)}
 
-    ${metric("Pipeline by Stage", `${totalPipeline} open items across stages. ${groomedRate}% ready, ${inProgressRate}% in progress.`)}
-    <table style="border-collapse:separate;border-spacing:6px 0;width:100%;table-layout:fixed;margin:8px 0;">
+    ${metric("Stage Distribution", `${totalOpenItems} open items across all workflow stages.`)}
+    ${stageMap.size > 0 ? (() => {
+      const SC: Record<string, string> = {
+        "backlog": "#94a3b8", "new": "#94a3b8", "open": "#94a3b8", "to do": "#94a3b8",
+        "discovery": "#059669", "investigation": "#059669", "research": "#059669",
+        "in design": "#8b5cf6", "design": "#8b5cf6",
+        "groomed": "#06b6d4", "refined": "#06b6d4", "grooming": "#06b6d4",
+        "ready for development": "#16a34a", "ready for dev": "#16a34a", "ready": "#16a34a", "selected for development": "#16a34a",
+        "in progress": "#009add", "in development": "#009add", "developing": "#009add",
+        "in review": "#a855f7", "code review": "#a855f7", "peer review": "#a855f7",
+        "in testing": "#f59e0b", "qa": "#f59e0b", "testing": "#f59e0b",
+        "blocked": "#dc2626",
+      };
+      const gc = (s: string) => SC[s.toLowerCase()] || "#64748b";
+      const sorted = [...stageMap.entries()].sort((a, b) => b[1] - a[1]);
+      const cards = sorted.map(([status, count]) => {
+        const ai = stageAgingMap.get(status) || 0;
+        return stageCard(status, count, gc(status), ai > 0 ? ai + " aging" : undefined);
+      });
+      while (cards.length % 4 !== 0) cards.push('<td style="width:25%;padding:0 4px;"></td>');
+      const trs: string[] = [];
+      for (let i = 0; i < cards.length; i += 4) {
+        trs.push("<tr>" + cards.slice(i, i + 4).join("") + "</tr>");
+      }
+      return '<table style="border-collapse:separate;border-spacing:6px 6px;width:100%;table-layout:fixed;margin:8px 0;">' + trs.join("") + "</table>";
+    })() : `<table style="border-collapse:separate;border-spacing:6px 0;width:100%;table-layout:fixed;margin:8px 0;">
       <tr>
       ${stageCard("Ready for Dev", readyCount, "#16a34a", readyCount < 5 ? "Low" : readyCount >= 15 ? "Healthy" : undefined)}
-      ${stageCard("In Progress", wipCount, "#4f46e5")}
+      ${stageCard("In Progress", wipCount, "#009add")}
       ${stageCard("Blocked", blockedCount, "#dc2626", blockedCount > 0 ? "Action needed" : undefined)}
       ${stageCard("Discovery", discoveryCount, "#059669", discoveryCount > 0 ? "Completed" : "None")}
       </tr>
-    </table>
+    </table>`}
 
     ${metric("Backlog Readiness", `${readyCount} groomed items ready to pull.`)}
     ${backlog && backlog.issueCount > 0 ? (() => {
@@ -971,22 +1030,26 @@ export function buildFullReport(
       return typeDistributionBar(byType);
     })() : '<p style="color:#94a3b8;font-size:11px;">No items in Ready for Development.</p>'}
 
-    ${metric("Aging Backlog", `${agingCount} items with no activity for 30+ days.`)}
+    ${metric("Aging Analysis", `${agingCount} items with no activity for 30+ days.${agingGroomedCount > 0 ? ' <strong style="color:#dc2626;">' + agingGroomedCount + " in groomed stages.</strong>" : ""}`)}
     ${agingCount > 0 ? `<table style="border-collapse:separate;border-spacing:6px 0;width:100%;table-layout:fixed;margin:8px 0;">
       <tr>
-        ${stageCard("30–60 days", aging30to60, "#eab308")}
-        ${stageCard("60–90 days", aging60to90, "#f97316")}
+        ${stageCard("30\u201360 days", aging30to60, "#eab308")}
+        ${stageCard("60\u201390 days", aging60to90, "#f97316")}
         ${stageCard("90+ days", agingOver90, "#dc2626", agingOver90 > 0 ? "Stale" : undefined)}
-        ${stageCard("Avg Age", agingAvgDays, "#94a3b8", "days")}
+        ${stageCard("Groomed & Aging", agingGroomedCount, "#991b1b", agingGroomedCount > 0 ? "Critical" : "Clean")}
       </tr>
-    </table>` : '<p style="color:#16a34a;font-size:11px;">No aging items.</p>'}
+    </table>
+    <p style="font-size:10px;color:#94a3b8;margin:4px 0 0;line-height:1.4;">
+      <strong style="color:#64748b;">Note:</strong> A large backlog is healthy when items are new or in discovery. Aging groomed items (ready for dev but untouched 30+ days) indicate a pipeline problem.
+      ${agingAvgDays > 0 ? " Average aging item is <strong>" + agingAvgDays + " days</strong> old." : ""}
+    </p>` : '<p style="color:#16a34a;font-size:11px;">No aging items.</p>'}
 
     ${insights(backlogGood, backlogImprove)}
 
     <!-- Footer -->
-    <div style="margin-top:24px;padding-top:14px;border-top:1px solid #e2e8f0;text-align:center;">
-      <div style="font-size:13px;font-weight:800;letter-spacing:2px;color:#4f46e5;text-transform:uppercase;">&#9993; Mailcraft</div>
-      <div style="font-size:10px;color:#cbd5e1;margin-top:2px;">${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</div>
+    <div style="margin-top:24px;padding-top:14px;border-top:1px solid #cbd6e2;text-align:center;">
+      <img src="https://welcome.saas.mrisoftware.com/Content/images/MRI_Logo_RGB_Small.png" alt="MRI Software" style="height:24px;display:inline-block;margin-bottom:4px;" />
+      <div style="font-size:10px;color:#778692;margin-top:2px;">${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</div>
     </div>
   </div>
 </div>`;

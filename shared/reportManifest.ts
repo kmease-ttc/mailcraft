@@ -243,6 +243,22 @@ export const REPORT_SECTIONS: ReportSection[] = [
       upIsGood: false,
     },
   },
+  {
+    id: "stage_distribution",
+    query: {
+      sheet: "14_StageDistribution",
+      label: "All Open Items by Stage",
+      metrics: "Stage Distribution",
+      jql: "project IN (LSCI, LVAIRD) AND status NOT IN (Done, Closed, Cancelled) ORDER BY status ASC",
+    },
+    template: {
+      pillar: "backlog_health",
+      title: "Stage Distribution",
+      description: "All open items grouped by workflow stage — shows backlog health at a glance.",
+      trendDateColumn: "Updated",
+      upIsGood: true,
+    },
+  },
 ];
 
 /* ── Derived exports ────────────────────────────────────────── */

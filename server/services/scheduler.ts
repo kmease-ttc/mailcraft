@@ -4,7 +4,7 @@ import { fetchRuns, reports, emailLog, schedules } from "../db/schema.js";
 import { eq } from "drizzle-orm";
 import { REPORT_SECTIONS, REPORT_QUERY_IDS, CHANGELOG_QUERY_IDS } from "../../shared/reportManifest.js";
 import { runJqlQuery, flattenIssue } from "./jira.js";
-import { sendEmail } from "./resend.js";
+import { sendEmail } from "./sendgrid.js";
 import type { JiraCredentials, JiraQueryResult } from "../../shared/types.js";
 import { buildFullReport } from "../../client/src/lib/reportBuilder.js";
 
