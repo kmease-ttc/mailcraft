@@ -821,6 +821,42 @@ export function buildFullReport(
   const blockedCount = blocked?.issueCount || 0;
   const discoveryCount = discovery?.issueCount || 0;
 
+  // Stage color map & pipeline grouping
+  const SC: Record<string, string> = {
+    "backlog": "#94a3b8", "new": "#94a3b8", "open": "#94a3b8", "to do": "#94a3b8",
+    "discovery": "#059669", "investigation": "#059669", "research": "#059669",
+    "in design": "#8b5cf6", "design": "#8b5cf6",
+    "groomed": "#06b6d4", "refined": "#06b6d4", "grooming": "#06b6d4",
+    "ready for development": "#16a34a", "ready for dev": "#16a34a", "ready": "#16a34a", "selected for development": "#16a34a",
+    "in progress": "#009add", "in development": "#009add", "developing": "#009add",
+    "in review": "#a855f7", "code review": "#a855f7", "peer review": "#a855f7",
+    "in testing": "#f59e0b", "qa": "#f59e0b", "testing": "#f59e0b",
+    "blocked": "#dc2626",
+  };
+  const gc = (s: string) => SC[s.toLowerCase()] || "#64748b";
+
+  const DEV_STAGE_KEYS = new Set(["ready for development", "ready for dev", "ready", "selected for development", "in progress", "in development", "developing", "in review", "code review", "peer review", "in testing", "qa", "testing", "blocked"]);
+  const PLANNING_STAGE_KEYS = new Set(["backlog", "new", "open", "to do", "discovery", "investigation", "research", "in design", "design", "groomed", "refined", "grooming"]);
+
+  const devStageEntries = [...stageMap.entries()].filter(([s]) => DEV_STAGE_KEYS.has(s.toLowerCase())).sort((a, b) => b[1] - a[1]);
+  const planningStageEntries = [...stageMap.entries()].filter(([s]) => PLANNING_STAGE_KEYS.has(s.toLowerCase())).sort((a, b) => b[1] - a[1]);
+  const devStageTotal = devStageEntries.reduce((s, [, c]) => s + c, 0);
+  const planningStageTotal = planningStageEntries.reduce((s, [, c]) => s + c, 0);
+
+  const renderStageGroup = (entries: [string, number][]) => {
+    if (entries.length === 0) return '<p style="color:#94a3b8;font-size:11px;">No items.</p>';
+    const cards = entries.map(([status, count]) => {
+      const ai = stageAgingMap.get(status) || 0;
+      return stageCard(status, count, gc(status), ai > 0 ? ai + " aging" : undefined);
+    });
+    while (cards.length % 4 !== 0) cards.push('<td style="width:25%;padding:0 4px;"></td>');
+    const trs: string[] = [];
+    for (let i = 0; i < cards.length; i += 4) {
+      trs.push("<tr>" + cards.slice(i, i + 4).join("") + "</tr>");
+    }
+    return '<table style="border-collapse:separate;border-spacing:6px 6px;width:100%;table-layout:fixed;margin:8px 0;">' + trs.join("") + "</table>";
+  };
+
   /* ── HTML ───────────────────────────────────────────────────── */
 
   let html = `
