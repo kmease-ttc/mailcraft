@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import type { CsvRow, JiraQueryResponse } from "@shared/types";
-import { JIRA_QUERIES } from "@shared/jiraQueries";
+import { REPORT_SECTIONS } from "@shared/reportManifest";
 import {
   Database,
   CheckCircle,
@@ -39,7 +39,7 @@ export function JiraConnector({ onParsed }: Props) {
 
   // Query selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(
-    new Set(JIRA_QUERIES.map((q) => q.id))
+    new Set(REPORT_SECTIONS.map((s) => s.id))
   );
 
   // Fetch state
@@ -94,7 +94,7 @@ export function JiraConnector({ onParsed }: Props) {
   };
 
   const toggleAll = () => {
-    if (selectedIds.size === JIRA_QUERIES.length) {
+    if (selectedIds.size === REPORT_SECTIONS.length) {
       setSelectedIds(new Set());
     } else {
       setSelectedIds(new Set(JIRA_QUERIES.map((q) => q.id)));
@@ -260,33 +260,33 @@ export function JiraConnector({ onParsed }: Props) {
               onClick={toggleAll}
               className="text-sm text-indigo-600 hover:text-indigo-800"
             >
-              {selectedIds.size === JIRA_QUERIES.length
+              {selectedIds.size === REPORT_SECTIONS.length
                 ? "Deselect All"
                 : "Select All"}
             </button>
           </div>
 
           <div className="space-y-1.5 max-h-80 overflow-y-auto">
-            {JIRA_QUERIES.map((q) => (
+            {REPORT_SECTIONS.map((s) => (
               <label
-                key={q.id}
+                key={s.id}
                 className={`flex items-start gap-3 px-4 py-3 rounded-lg border cursor-pointer transition-colors ${
-                  selectedIds.has(q.id)
+                  selectedIds.has(s.id)
                     ? "border-indigo-200 bg-indigo-50/50"
                     : "border-gray-200 hover:border-gray-300"
                 }`}
               >
                 <input
                   type="checkbox"
-                  checked={selectedIds.has(q.id)}
-                  onChange={() => toggleQuery(q.id)}
+                  checked={selectedIds.has(s.id)}
+                  onChange={() => toggleQuery(s.id)}
                   className="mt-0.5 rounded border-gray-300"
                 />
                 <div>
                   <p className="text-sm font-medium text-gray-800">
-                    {q.label}
+                    {s.query.label}
                   </p>
-                  <p className="text-xs text-gray-500">{q.metrics}</p>
+                  <p className="text-xs text-gray-500">{s.query.metrics}</p>
                 </div>
               </label>
             ))}

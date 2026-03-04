@@ -2,7 +2,7 @@ import cron, { type ScheduledTask } from "node-cron";
 import { db } from "../db/index.js";
 import { fetchRuns, reports, emailLog, schedules } from "../db/schema.js";
 import { eq } from "drizzle-orm";
-import { JIRA_QUERIES } from "../../shared/jiraQueries.js";
+import { REPORT_SECTIONS, REPORT_QUERY_IDS, CHANGELOG_QUERY_IDS } from "../../shared/reportManifest.js";
 import { runJqlQuery, flattenIssue } from "./jira.js";
 import { sendEmail } from "./resend.js";
 import type { JiraCredentials, JiraQueryResult } from "../../shared/types.js";
@@ -35,32 +35,31 @@ export async function executeScheduledRun(
 
   const queryIds: string[] = schedule.queryIds
     ? JSON.parse(schedule.queryIds)
-    : JIRA_QUERIES.map((q) => q.id);
+    : REPORT_QUERY_IDS;
 
-  const selected = JIRA_QUERIES.filter((q) => queryIds.includes(q.id));
-  const CHANGELOG_QUERIES = new Set(["cycle_time"]);
+  const selected = REPORT_SECTIONS.filter((s) => queryIds.includes(s.id));
 
   // 1. Fetch JIRA data
   const results: JiraQueryResult[] = [];
-  for (const queryDef of selected) {
+  for (const section of selected) {
     try {
-      const needsChangelog = CHANGELOG_QUERIES.has(queryDef.id);
-      const issues = await runJqlQuery(creds, queryDef.jql, 1000, {
+      const needsChangelog = CHANGELOG_QUERY_IDS.has(section.id);
+      const issues = await runJqlQuery(creds, section.query.jql, 1000, {
         expandChangelog: needsChangelog,
       });
-      const rows = issues.map((issue) => flattenIssue(issue, queryDef.label));
+      const rows = issues.map((issue) => flattenIssue(issue, section.query.label));
       results.push({
-        queryId: queryDef.id,
-        label: queryDef.label,
-        metrics: queryDef.metrics,
+        queryId: section.id,
+        label: section.query.label,
+        metrics: section.query.metrics,
         issueCount: issues.length,
         rows,
       });
     } catch (err: any) {
       results.push({
-        queryId: queryDef.id,
-        label: queryDef.label,
-        metrics: queryDef.metrics,
+        queryId: section.id,
+        label: section.query.label,
+        metrics: section.query.metrics,
         issueCount: 0,
         rows: [],
         error: err.message,

@@ -10,7 +10,8 @@ import {
   runJqlQuery,
   flattenIssue,
 } from "../services/jira.js";
-import { JIRA_QUERIES, JIRA_COLUMNS } from "../../shared/jiraQueries.js";
+import { REPORT_SECTIONS, CHANGELOG_QUERY_IDS } from "../../shared/reportManifest.js";
+import { JIRA_COLUMNS } from "../../shared/jiraQueries.js";
 import { db } from "../db/index.js";
 import { fetchRuns } from "../db/schema.js";
 
@@ -46,37 +47,34 @@ jiraRouter.post("/query", async (req, res) => {
     return res.status(400).json({ error: "Missing credentials or queries" });
   }
 
-  const selected = JIRA_QUERIES.filter((q) => queryIds.includes(q.id));
+  const selected = REPORT_SECTIONS.filter((s) => queryIds.includes(s.id));
   if (!selected.length) {
     return res.status(400).json({ error: "No valid query IDs" });
   }
 
   const results: JiraQueryResult[] = [];
 
-  // Queries that need changelog for cycle time calculation
-  const CHANGELOG_QUERIES = new Set(["cycle_time"]);
-
-  for (const queryDef of selected) {
+  for (const section of selected) {
     try {
-      const needsChangelog = CHANGELOG_QUERIES.has(queryDef.id);
-      const issues = await runJqlQuery(credentials, queryDef.jql, 1000, {
+      const needsChangelog = CHANGELOG_QUERY_IDS.has(section.id);
+      const issues = await runJqlQuery(credentials, section.query.jql, 1000, {
         expandChangelog: needsChangelog,
       });
       const rows = issues.map((issue) =>
-        flattenIssue(issue, queryDef.label)
+        flattenIssue(issue, section.query.label)
       );
       results.push({
-        queryId: queryDef.id,
-        label: queryDef.label,
-        metrics: queryDef.metrics,
+        queryId: section.id,
+        label: section.query.label,
+        metrics: section.query.metrics,
         issueCount: issues.length,
         rows,
       });
     } catch (err: any) {
       results.push({
-        queryId: queryDef.id,
-        label: queryDef.label,
-        metrics: queryDef.metrics,
+        queryId: section.id,
+        label: section.query.label,
+        metrics: section.query.metrics,
         issueCount: 0,
         rows: [],
         error: err.message,

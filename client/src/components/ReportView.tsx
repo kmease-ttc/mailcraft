@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { JiraQueryResponse, JiraQueryResult } from "@shared/types";
+import { REPORT_QUERY_IDS } from "@shared/reportManifest";
 import { buildFullReport } from "../lib/reportBuilder";
 import {
   Database,
@@ -56,21 +57,7 @@ export function ReportView() {
         return;
       }
 
-      const queryIds = [
-        "throughput",
-        "velocity",
-        "cycle_time",
-        "wip",
-        "backlog_readiness",
-        "all_bugs",
-        "prod_bugs",
-        "regressions",
-        "rework",
-        "unplanned_work",
-        "discovery",
-        "blocked",
-        "aging_backlog",
-      ];
+      const queryIds = REPORT_QUERY_IDS;
 
       const res = await fetch("/api/jira/query", {
         method: "POST",
@@ -229,7 +216,7 @@ export function ReportView() {
             {fetching ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Fetching all 13 queries...
+                Fetching all {REPORT_QUERY_IDS.length} queries...
               </>
             ) : fetched ? (
               <>
