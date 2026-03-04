@@ -442,10 +442,14 @@ def main():
 
     results_summary = []
 
+    # Sheets that need changelog for cycle time calculation
+    CHANGELOG_SHEETS = {"3_CycleTime"}
+
     for i, q in enumerate(QUERIES, 1):
         print(f"[{i:02d}/{len(QUERIES)}] {q['sheet']} ...")
         try:
-            issues = run_query(q["jql"])
+            needs_changelog = q["sheet"] in CHANGELOG_SHEETS
+            issues = run_query(q["jql"], expand_changelog=needs_changelog)
             count  = len(issues)
             status = "OK"
             print(f"        {count} records")
