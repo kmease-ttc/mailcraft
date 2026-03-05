@@ -700,16 +700,7 @@ export function buildFullReport(
     return score;
   })();
 
-  const backlogScore = (() => {
-    let score = 0;
-    // Ready items — having groomed work available is good
-    const ready = backlog?.issueCount || 0;
-    if (ready >= 15) score += 50; else if (ready >= 10) score += 40; else if (ready >= 5) score += 25; else score += 10;
-    // Discovery work is positive — large backlog of new/discovery items is fine
-    const disc = discovery?.issueCount || 0;
-    if (disc >= 5) score += 50; else if (disc > 0) score += 40; else score += 20;
-    return score;
-  })();
+  // backlogScore computed below after pipeline velocity metrics
 
   // Individual metric grades
   const throughputGrade = (() => {
@@ -792,17 +783,9 @@ export function buildFullReport(
   if ((blocked?.issueCount || 0) === 0) flowGood.push("No blocked items");
   if ((blocked?.issueCount || 0) > 3) flowImprove.push(`${blocked!.issueCount} items blocked by dependencies`);
 
+  // backlogGood/backlogImprove populated after pipeline velocity metrics below
   const backlogGood: string[] = [];
   const backlogImprove: string[] = [];
-
-  if ((backlog?.issueCount || 0) >= 10) backlogGood.push(`${backlog!.issueCount} items groomed and ready`);
-  if ((backlog?.issueCount || 0) > 0 && (backlog?.issueCount || 0) < 5) backlogImprove.push(`Only ${backlog!.issueCount} items ready — backlog may run dry`);
-  if ((discovery?.issueCount || 0) > 0) backlogGood.push(`${discovery!.issueCount} research/spikes completed — healthy discovery pipeline`);
-  if (totalOpenItems > 0) backlogGood.push(`${totalOpenItems} total open items across ${stageMap.size} stages`);
-
-  // ── Executive summary highlights (top 3 each) ─────────────
-  const topGood = [...deliveryGood, ...qualityGood, ...flowGood, ...backlogGood].slice(0, 3);
-  const topImprove = [...deliveryImprove, ...qualityImprove, ...flowImprove, ...backlogImprove].slice(0, 3);
 
   // ── Backlog pipeline data ──────────────────────────────────
   const readyCount = backlog?.issueCount || 0;
@@ -834,6 +817,61 @@ export function buildFullReport(
   const planningStageEntries = [...stageMap.entries()].filter(([s]) => PLANNING_STAGE_KEYS.has(s.toLowerCase())).sort((a, b) => b[1] - a[1]);
   const devStageTotal = devStageEntries.reduce((s, [, c]) => s + c, 0);
   const planningStageTotal = planningStageEntries.reduce((s, [, c]) => s + c, 0);
+
+  // Pipeline velocity — monthly completion rate from throughput data
+  const monthlyCompletionCounts = last6.map(m => (throughputByMonth.get(m) || []).length);
+  const nonZeroMonths = monthlyCompletionCounts.filter(c => c > 0);
+  const monthlyAvgCompletion = nonZeroMonths.length > 0
+    ? Math.round(nonZeroMonths.reduce((s, v) => s + v, 0) / nonZeroMonths.length)
+    : 0;
+  const weeklyAvgCompletion = monthlyAvgCompletion > 0
+    ? Math.round((monthlyAvgCompletion / 4.33) * 10) / 10
+    : 0;
+  const pipelineDepth = totalOpenItems;
+  const weeksOfWork = weeklyAvgCompletion > 0
+    ? Math.round((pipelineDepth / weeklyAvgCompletion) * 10) / 10
+    : 0;
+
+  const backlogScore = (() => {
+    let score = 0;
+    // Factor 1 (25pts): Ready items
+    const ready = backlog?.issueCount || 0;
+    if (ready >= 15) score += 25; else if (ready >= 10) score += 20; else if (ready >= 5) score += 15; else if (ready > 0) score += 8; else score += 3;
+    // Factor 2 (25pts): Discovery pipeline
+    const disc = discovery?.issueCount || 0;
+    if (disc >= 5) score += 25; else if (disc >= 3) score += 20; else if (disc > 0) score += 15; else score += 5;
+    // Factor 3 (25pts): Pipeline balance — dev vs planning
+    const totalPipeline = devStageTotal + planningStageTotal;
+    if (totalPipeline > 0) {
+      const devRatio = devStageTotal / totalPipeline;
+      if (devRatio >= 0.3 && devRatio <= 0.7) score += 25;
+      else if (devRatio >= 0.2 && devRatio <= 0.8) score += 18;
+      else score += 10;
+    } else { score += 5; }
+    // Factor 4 (25pts): Pipeline depth vs throughput
+    if (weeksOfWork >= 4 && weeksOfWork <= 12) score += 25;
+    else if (weeksOfWork >= 2 && weeksOfWork <= 16) score += 18;
+    else if (weeksOfWork > 0) score += 10;
+    else score += 5;
+    return score;
+  })();
+
+  // ── Backlog insights (after pipeline velocity is computed) ──
+  if ((backlog?.issueCount || 0) >= 10) backlogGood.push(`${backlog!.issueCount} items groomed and ready to pull`);
+  else if ((backlog?.issueCount || 0) >= 5) backlogGood.push(`${backlog!.issueCount} items ready — adequate buffer`);
+  if ((backlog?.issueCount || 0) > 0 && (backlog?.issueCount || 0) < 5) backlogImprove.push(`Only ${backlog!.issueCount} items ready — backlog may run dry`);
+  if ((backlog?.issueCount || 0) === 0) backlogImprove.push("No groomed items ready to pull — schedule backlog refinement");
+  if ((discovery?.issueCount || 0) > 0) backlogGood.push(`${discovery!.issueCount} open research/idea items in discovery pipeline`);
+  if ((discovery?.issueCount || 0) === 0) backlogImprove.push("No discovery work in progress — consider adding research spikes");
+  if (totalOpenItems > 0) backlogGood.push(`${totalOpenItems} total open items across ${stageMap.size} stages`);
+  if (weeksOfWork >= 4 && weeksOfWork <= 12) backlogGood.push(`Pipeline runway at ${weeksOfWork} weeks — well-sized`);
+  if (weeksOfWork > 12) backlogImprove.push(`${weeksOfWork} weeks of work in pipeline — consider prioritization review`);
+  if (weeksOfWork > 0 && weeksOfWork < 3) backlogImprove.push(`Only ${weeksOfWork} weeks of work in pipeline — may need more grooming`);
+  if (monthlyAvgCompletion > 0) backlogGood.push(`Completing ~${monthlyAvgCompletion} items/month on average`);
+
+  // ── Executive summary highlights (top 3 each) ─────────────
+  const topGood = [...deliveryGood, ...qualityGood, ...flowGood, ...backlogGood].slice(0, 3);
+  const topImprove = [...deliveryImprove, ...qualityImprove, ...flowImprove, ...backlogImprove].slice(0, 3);
 
   const renderStageGroup = (entries: [string, number][]) => {
     if (entries.length === 0) return '<p style="color:#94a3b8;font-size:11px;">No items.</p>';
@@ -1046,17 +1084,45 @@ export function buildFullReport(
     ${metric("Planning Pipeline", `${planningStageTotal} items in planning and discovery stages.`)}
     ${renderStageGroup(planningStageEntries)}
 
+    ${metric("Pipeline Velocity", `${monthlyAvgCompletion} items/month avg completion rate over ${nonZeroMonths.length} months.`)}
+    ${monthlyAvgCompletion > 0 ? `<table style="border-collapse:separate;border-spacing:6px 0;width:100%;table-layout:fixed;margin:8px 0;">
+      <tr>
+        <td style="width:33.33%;text-align:center;padding:0;">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 8px;">
+            <div style="font-size:22px;font-weight:800;color:#009add;">${monthlyAvgCompletion}</div>
+            <div style="font-size:9px;color:#94a3b8;margin-top:2px;">Items/Month</div>
+          </div>
+        </td>
+        <td style="width:33.33%;text-align:center;padding:0;">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 8px;">
+            <div style="font-size:22px;font-weight:800;color:#009add;">${pipelineDepth}</div>
+            <div style="font-size:9px;color:#94a3b8;margin-top:2px;">Pipeline Depth</div>
+          </div>
+        </td>
+        <td style="width:33.33%;text-align:center;padding:0;">
+          <div style="background:${weeksOfWork > 12 ? "#fef2f2" : weeksOfWork > 8 ? "#fffbeb" : "#fff"};border:1px solid ${weeksOfWork > 12 ? "#fecaca" : weeksOfWork > 8 ? "#fde68a" : "#e2e8f0"};border-radius:10px;padding:14px 8px;">
+            <div style="font-size:22px;font-weight:800;color:${weeksOfWork > 12 ? "#dc2626" : weeksOfWork > 8 ? "#eab308" : "#16a34a"};">${weeksOfWork}</div>
+            <div style="font-size:9px;color:#94a3b8;margin-top:2px;">Weeks of Work</div>
+          </div>
+        </td>
+      </tr>
+    </table>
+    <p style="font-size:10px;color:#94a3b8;margin:4px 0 0;line-height:1.4;">
+      <strong style="color:#64748b;">Runway:</strong> At current rate (~${weeklyAvgCompletion}/week), the pipeline has ~${weeksOfWork} weeks of work.
+      ${weeksOfWork > 12 ? '<span style="color:#dc2626;">Large backlog — consider prioritization review.</span>' : weeksOfWork > 8 ? '<span style="color:#eab308;">Healthy buffer.</span>' : weeksOfWork > 3 ? '<span style="color:#16a34a;">Good — pipeline is well-sized.</span>' : '<span style="color:#f59e0b;">Shallow — may need backlog grooming soon.</span>'}
+    </p>` : '<p style="color:#94a3b8;font-size:11px;">No throughput data to compute velocity.</p>'}
+
     ${metric("Backlog Readiness", `${readyCount} groomed items ready to pull.`)}
     ${backlog && backlog.issueCount > 0 ? (() => {
       const byType = countBy(backlog.rows, "Issue Type");
       return typeDistributionBar(byType);
-    })() : '<p style="color:#94a3b8;font-size:11px;">No items in Ready for Development.</p>'}
+    })() : '<p style="color:#94a3b8;font-size:11px;">No groomed items without a sprint assignment.</p>'}
 
-    ${metric("Discovery & Investigation", `${discovery?.issueCount || 0} research and spike items.`)}
+    ${metric("Discovery & Investigation", `${discovery?.issueCount || 0} open research and idea items.`)}
     ${discovery && discovery.issueCount > 0 ? (() => {
       const byType = countBy(discovery.rows, "Issue Type");
       return typeDistributionBar(byType);
-    })() : '<p style="color:#94a3b8;font-size:11px;">No discovery or spike items found.</p>'}
+    })() : '<p style="color:#94a3b8;font-size:11px;">No open research or idea items found.</p>'}
 
     ${insights(backlogGood, backlogImprove)}
 
