@@ -12,6 +12,7 @@ fetchRunsRouter.get("/", (_req, res) => {
       id: fetchRuns.id,
       status: fetchRuns.status,
       queryIds: fetchRuns.queryIds,
+      teamIds: fetchRuns.teamIds,
       totalRows: fetchRuns.totalRows,
       errorCount: fetchRuns.errorCount,
       triggeredBy: fetchRuns.triggeredBy,
@@ -24,7 +25,7 @@ fetchRunsRouter.get("/", (_req, res) => {
     .all();
 
   res.json(
-    rows.map((r) => ({ ...r, queryIds: JSON.parse(r.queryIds) }))
+    rows.map((r) => ({ ...r, queryIds: JSON.parse(r.queryIds), teamIds: r.teamIds ? JSON.parse(r.teamIds) : null }))
   );
 });
 
@@ -39,6 +40,7 @@ fetchRunsRouter.get("/:id", (req, res) => {
   res.json({
     ...row,
     queryIds: JSON.parse(row.queryIds),
+    teamIds: row.teamIds ? JSON.parse(row.teamIds) : null,
     results: JSON.parse(row.resultsJson),
   });
 });

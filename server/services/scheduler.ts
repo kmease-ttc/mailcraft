@@ -2,7 +2,7 @@ import cron, { type ScheduledTask } from "node-cron";
 import { db } from "../db/index.js";
 import { fetchRuns, reports, emailLog, schedules } from "../db/schema.js";
 import { eq } from "drizzle-orm";
-import { REPORT_SECTIONS, REPORT_QUERY_IDS, CHANGELOG_QUERY_IDS } from "../../shared/reportManifest.js";
+import { REPORT_SECTIONS, REPORT_QUERY_IDS, CHANGELOG_QUERY_IDS, buildSectionsForTeams, teamLabel } from "../../shared/reportManifest.js";
 import { runJqlQuery, flattenIssue } from "./jira.js";
 import { sendEmail } from "./sendgrid.js";
 import type { JiraCredentials, JiraQueryResult } from "../../shared/types.js";
@@ -37,7 +37,14 @@ export async function executeScheduledRun(
     ? JSON.parse(schedule.queryIds)
     : REPORT_QUERY_IDS;
 
-  const selected = REPORT_SECTIONS.filter((s) => queryIds.includes(s.id));
+  // Use team-specific sections so JQL targets the correct Jira project(s)
+  const scheduleTeamIds: string[] = schedule.teamIds
+    ? JSON.parse(schedule.teamIds)
+    : [];
+  const allSections = scheduleTeamIds.length > 0
+    ? buildSectionsForTeams(scheduleTeamIds)
+    : REPORT_SECTIONS;
+  const selected = allSections.filter((s) => queryIds.includes(s.id));
 
   // 1. Fetch JIRA data
   const results: JiraQueryResult[] = [];
@@ -83,6 +90,7 @@ export async function executeScheduledRun(
     .values({
       status,
       queryIds: JSON.stringify(queryIds),
+      teamIds: scheduleTeamIds.length > 0 ? JSON.stringify(scheduleTeamIds) : null,
       resultsJson: JSON.stringify(results),
       totalRows,
       errorCount,
@@ -95,9 +103,10 @@ export async function executeScheduledRun(
 
   // 3. Build report HTML
   const bodyHtml = buildFullReport(results);
+  const teamName = scheduleTeamIds.length > 0 ? teamLabel(scheduleTeamIds) : "LSCI";
   const subject =
     schedule.subject ||
-    `SDLC Performance Metrics — ${new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })}`;
+    `${teamName} — SDLC Performance Metrics — ${new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })}`;
 
   // 4. Save report
   const totalIssues = results.reduce((s, r) => s + r.issueCount, 0);

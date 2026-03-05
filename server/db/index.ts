@@ -67,5 +67,18 @@ export function initializeDatabase(): void {
       updated_at        TEXT NOT NULL
     );
   `);
+
+  // Migrations: add team_ids columns if missing
+  const fetchRunCols = sqlite.prepare("PRAGMA table_info(fetch_runs)").all() as { name: string }[];
+  if (!fetchRunCols.some((c) => c.name === "team_ids")) {
+    sqlite.exec("ALTER TABLE fetch_runs ADD COLUMN team_ids TEXT");
+    console.log("  → Added team_ids column to fetch_runs");
+  }
+  const scheduleCols = sqlite.prepare("PRAGMA table_info(schedules)").all() as { name: string }[];
+  if (!scheduleCols.some((c) => c.name === "team_ids")) {
+    sqlite.exec("ALTER TABLE schedules ADD COLUMN team_ids TEXT");
+    console.log("  → Added team_ids column to schedules");
+  }
+
   console.log(`Database initialized at ${DB_PATH}`);
 }

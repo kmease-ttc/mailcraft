@@ -99,12 +99,14 @@ jiraRouter.post("/query", async (req, res) => {
         ? "partial"
         : "error";
 
-  // Persist to fetch_runs table
+  // Persist to fetch_runs table (include teamIds so reports know which project)
+  const effectiveTeamIds = teamIds?.length ? teamIds : teamId ? [teamId] : null;
   const fetchRunResult = db
     .insert(fetchRuns)
     .values({
       status,
       queryIds: JSON.stringify(queryIds),
+      teamIds: effectiveTeamIds ? JSON.stringify(effectiveTeamIds) : null,
       resultsJson: JSON.stringify(results),
       totalRows: allRows.length,
       errorCount,

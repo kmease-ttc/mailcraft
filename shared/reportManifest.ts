@@ -53,8 +53,10 @@ function projectClause(projects: string[]): string {
 
 /** Generate report sections for a given team */
 export function buildSectionsForTeam(teamId: string): ReportSection[] {
-  const team = TEAM_CONFIGS.find((t) => t.id === teamId) || TEAM_CONFIGS[0];
-  const pc = projectClause(team.projects);
+  const team = TEAM_CONFIGS.find((t) => t.id === teamId);
+  // Use the team's configured projects, or fall back to teamId uppercased as a project key
+  const projects = team ? team.projects : [teamId.toUpperCase()];
+  const pc = projectClause(projects);
   return BASE_SECTIONS.map((s) => ({
     ...s,
     query: {
@@ -70,9 +72,8 @@ export function buildSectionsForTeams(teamIds: string[]): ReportSection[] {
   if (teamIds.length === 1) return buildSectionsForTeam(teamIds[0]);
   const allProjects = teamIds.flatMap((id) => {
     const t = TEAM_CONFIGS.find((c) => c.id === id);
-    return t ? t.projects : [];
+    return t ? t.projects : [id.toUpperCase()];
   });
-  if (allProjects.length === 0) return buildSectionsForTeam(DEFAULT_TEAM_ID);
   const pc = projectClause(allProjects);
   return BASE_SECTIONS.map((s) => ({
     ...s,

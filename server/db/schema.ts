@@ -5,6 +5,7 @@ export const fetchRuns = sqliteTable("fetch_runs", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   status: text("status").notNull().default("success"), // "success" | "partial" | "error"
   queryIds: text("query_ids").notNull(), // JSON array
+  teamIds: text("team_ids"), // JSON array of team IDs (nullable for legacy runs)
   resultsJson: text("results_json").notNull(), // Full JiraQueryResult[] as JSON
   totalRows: integer("total_rows").notNull().default(0),
   errorCount: integer("error_count").notNull().default(0),
@@ -46,6 +47,7 @@ export const schedules = sqliteTable("schedules", {
   recipients: text("recipients").notNull(), // comma-separated
   subject: text("subject"), // nullable override
   queryIds: text("query_ids"), // nullable JSON array (null = all 13)
+  teamIds: text("team_ids"), // JSON array of team IDs (nullable = default team)
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
   lastRunAt: text("last_run_at"),
   lastRunStatus: text("last_run_status"),
