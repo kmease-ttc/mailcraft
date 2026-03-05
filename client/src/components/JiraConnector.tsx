@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { CsvRow, JiraQueryResponse } from "@shared/types";
 import { REPORT_SECTIONS, TEAM_CONFIGS, DEFAULT_TEAM_ID, buildSectionsForTeams, teamLabel as getTeamLabel } from "@shared/reportManifest";
 import {
@@ -8,6 +8,7 @@ import {
   Loader2,
   Eye,
   EyeOff,
+  ChevronDown,
 } from "lucide-react";
 
 const LS_KEY = "mailcraft_jira_creds";
@@ -35,6 +36,19 @@ export function JiraConnector({ onParsed }: Props) {
   const [selectedTeams, setSelectedTeams] = useState<Set<string>>(new Set([DEFAULT_TEAM_ID]));
   const teamIds = Array.from(selectedTeams);
   const sections = buildSectionsForTeams(teamIds);
+  const [teamDropdownOpen, setTeamDropdownOpen] = useState(false);
+  const teamDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (teamDropdownRef.current && !teamDropdownRef.current.contains(e.target as Node)) {
+        setTeamDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   // Connection state
   const [testing, setTesting] = useState(false);
@@ -273,25 +287,42 @@ export function JiraConnector({ onParsed }: Props) {
       {/* Team + Query selector - only after connection */}
       {connected && (
         <div>
-          {/* Team multi-select */}
+          {/* Team multi-select dropdown */}
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
               Teams / Projects
             </label>
-            <div className="flex flex-wrap gap-2">
-              {TEAM_CONFIGS.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => toggleTeam(t.id)}
-                  className={`px-3 py-1.5 text-sm rounded-lg border transition-colors font-medium ${
-                    selectedTeams.has(t.id)
-                      ? "bg-indigo-500 border-indigo-500 text-white"
-                      : "bg-white border-gray-300 text-gray-600 hover:border-indigo-300 hover:text-indigo-600"
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
+            <div className="relative" ref={teamDropdownRef}>
+              <button
+                onClick={() => setTeamDropdownOpen(!teamDropdownOpen)}
+                className="w-full flex items-center justify-between px-4 py-2.5 border border-gray-300 rounded-lg bg-white text-left focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+              >
+                <span className="text-sm text-gray-800 truncate">
+                  {getTeamLabel(teamIds)}
+                </span>
+                <ChevronDown className={`w-4 h-4 text-gray-400 shrink-0 ml-2 transition-transform ${teamDropdownOpen ? "rotate-180" : ""}`} />
+              </button>
+              {teamDropdownOpen && (
+                <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg py-1">
+                  {TEAM_CONFIGS.map((t) => (
+                    <label
+                      key={t.id}
+                      className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedTeams.has(t.id)}
+                        onChange={() => toggleTeam(t.id)}
+                        className="rounded border-gray-300 text-indigo-500 focus:ring-indigo-500"
+                      />
+                      <div>
+                        <span className="text-sm font-medium text-gray-800">{t.label}</span>
+                        <span className="text-xs text-gray-400 ml-1.5">({t.projects.join(", ")})</span>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 

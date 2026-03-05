@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { JiraQueryResponse, JiraQueryResult } from "@shared/types";
 import { REPORT_QUERY_IDS, TEAM_CONFIGS, DEFAULT_TEAM_ID, buildSectionsForTeams, teamLabel as getTeamLabel } from "@shared/reportManifest";
 import { buildFullReport } from "../lib/reportBuilder";
@@ -13,6 +13,7 @@ import {
   Eye,
   RefreshCw,
   Save,
+  ChevronDown,
 } from "lucide-react";
 
 export function ReportView() {
@@ -20,6 +21,18 @@ export function ReportView() {
   const [selectedTeams, setSelectedTeams] = useState<Set<string>>(new Set([DEFAULT_TEAM_ID]));
   const teamIds = Array.from(selectedTeams);
   const currentTeamLabel = getTeamLabel(teamIds);
+  const [teamDropdownOpen, setTeamDropdownOpen] = useState(false);
+  const teamDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (teamDropdownRef.current && !teamDropdownRef.current.contains(e.target as Node)) {
+        setTeamDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   const toggleTeam = (id: string) => {
     const next = new Set(selectedTeams);
