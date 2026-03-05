@@ -26,7 +26,70 @@ export interface ReportSection {
   needsChangelog?: boolean;
 }
 
-export const REPORT_SECTIONS: ReportSection[] = [
+/* ── Team Configurations ──────────────────────────────────────── */
+
+export interface TeamConfig {
+  id: string;
+  label: string;
+  projects: string[];  // Jira project keys
+}
+
+export const TEAM_CONFIGS: TeamConfig[] = [
+  { id: "lsci-lvaird", label: "LSCI / LVAIRD", projects: ["LSCI", "LVAIRD"] },
+  { id: "rpmt", label: "RPMT", projects: ["RPMT"] },
+  { id: "pxss", label: "PXSS", projects: ["PXSS"] },
+  { id: "checkid", label: "CHECKID", projects: ["CHECKID"] },
+];
+
+export const DEFAULT_TEAM_ID = "lsci-lvaird";
+
+/** Build JQL project clause from project keys */
+function projectClause(projects: string[]): string {
+  if (projects.length === 1) return `project = ${projects[0]}`;
+  return `project IN (${projects.join(", ")})`;
+}
+
+/** Generate report sections for a given team */
+export function buildSectionsForTeam(teamId: string): ReportSection[] {
+  const team = TEAM_CONFIGS.find((t) => t.id === teamId) || TEAM_CONFIGS[0];
+  const pc = projectClause(team.projects);
+  return BASE_SECTIONS.map((s) => ({
+    ...s,
+    query: {
+      ...s.query,
+      jql: s.query.jql.replace(/PROJECT_CLAUSE/g, pc),
+    },
+  }));
+}
+
+/** Generate report sections for multiple teams (combines their project keys) */
+export function buildSectionsForTeams(teamIds: string[]): ReportSection[] {
+  if (teamIds.length === 0) return buildSectionsForTeam(DEFAULT_TEAM_ID);
+  if (teamIds.length === 1) return buildSectionsForTeam(teamIds[0]);
+  const allProjects = teamIds.flatMap((id) => {
+    const t = TEAM_CONFIGS.find((c) => c.id === id);
+    return t ? t.projects : [];
+  });
+  if (allProjects.length === 0) return buildSectionsForTeam(DEFAULT_TEAM_ID);
+  const pc = projectClause(allProjects);
+  return BASE_SECTIONS.map((s) => ({
+    ...s,
+    query: {
+      ...s.query,
+      jql: s.query.jql.replace(/PROJECT_CLAUSE/g, pc),
+    },
+  }));
+}
+
+/** Build a display label for multiple teams */
+export function teamLabel(teamIds: string[]): string {
+  return teamIds
+    .map((id) => TEAM_CONFIGS.find((t) => t.id === id)?.label || id)
+    .join(" + ");
+}
+
+/** Base sections with PROJECT_CLAUSE placeholder */
+const BASE_SECTIONS: ReportSection[] = [
   // ═══ PILLAR I: DELIVERY PERFORMANCE ═══
   {
     id: "throughput",
@@ -34,7 +97,7 @@ export const REPORT_SECTIONS: ReportSection[] = [
       sheet: "1_Throughput_WorkType",
       label: "Throughput + Work Type Distribution + Planned vs Unplanned",
       metrics: "Throughput, Work Type Distribution, Planned vs. Unplanned",
-      jql: "project IN (LSCI, LVAIRD) AND status = Done AND resolved >= -26w ORDER BY resolved DESC",
+      jql: "PROJECT_CLAUSE AND status = Done AND resolved >= -26w ORDER BY resolved DESC",
     },
     template: {
       pillar: "delivery",
@@ -50,7 +113,7 @@ export const REPORT_SECTIONS: ReportSection[] = [
       sheet: "2_Velocity",
       label: "Velocity + Velocity Stability",
       metrics: "Velocity, Velocity Stability",
-      jql: 'project IN (LSCI, LVAIRD) AND status = Done AND resolved >= -26w AND ("Actual Story Points" > 0 OR "Estimated Story Points" > 0) ORDER BY resolved DESC',
+      jql: 'PROJECT_CLAUSE AND status = Done AND resolved >= -26w AND ("Actual Story Points" > 0 OR "Estimated Story Points" > 0) ORDER BY resolved DESC',
     },
     template: {
       pillar: "delivery",
@@ -66,7 +129,7 @@ export const REPORT_SECTIONS: ReportSection[] = [
       sheet: "3_CycleTime",
       label: "Cycle Time",
       metrics: "Cycle Time",
-      jql: 'project IN (LSCI, LVAIRD) AND status = Done AND resolved >= -26w AND (status WAS "In Development" OR status WAS "In Progress") ORDER BY resolved DESC',
+      jql: 'PROJECT_CLAUSE AND status = Done AND resolved >= -26w AND (status WAS "In Development" OR status WAS "In Progress") ORDER BY resolved DESC',
     },
     template: {
       pillar: "delivery",
@@ -85,7 +148,7 @@ export const REPORT_SECTIONS: ReportSection[] = [
       sheet: "6_AllBugs",
       label: "All Bugs (Defect Count / Defect Density)",
       metrics: "Defect Count, Defect Density",
-      jql: "project IN (LSCI, LVAIRD) AND issuetype = Bug AND created >= -26w ORDER BY created DESC",
+      jql: "PROJECT_CLAUSE AND issuetype = Bug AND created >= -26w ORDER BY created DESC",
     },
     template: {
       pillar: "quality",
@@ -101,7 +164,7 @@ export const REPORT_SECTIONS: ReportSection[] = [
       sheet: "7_ProdBugs",
       label: "Production Bugs (Defect Escape Rate)",
       metrics: "Defect Escape Rate",
-      jql: 'project IN (LSCI, LVAIRD) AND issuetype = Bug AND created >= -26w AND priority IN (P0, P1) ORDER BY created DESC',
+      jql: 'PROJECT_CLAUSE AND issuetype = Bug AND created >= -26w AND priority IN (P0, P1) ORDER BY created DESC',
     },
     template: {
       pillar: "quality",
@@ -117,7 +180,7 @@ export const REPORT_SECTIONS: ReportSection[] = [
       sheet: "8_Regressions",
       label: "Regression Bugs",
       metrics: "Regression Rate",
-      jql: 'project IN (LSCI, LVAIRD) AND issuetype = Bug AND created >= -26w AND (summary ~ "regression" OR summary ~ "regress" OR labels = "regression") ORDER BY created DESC',
+      jql: 'PROJECT_CLAUSE AND issuetype = Bug AND created >= -26w AND (summary ~ "regression" OR summary ~ "regress" OR labels = "regression") ORDER BY created DESC',
     },
     template: {
       pillar: "quality",
@@ -133,7 +196,7 @@ export const REPORT_SECTIONS: ReportSection[] = [
       sheet: "9_Rework",
       label: "Rework (reopened issues)",
       metrics: "Rework Rate",
-      jql: "project IN (LSCI, LVAIRD) AND status WAS Done AND status != Done AND updated >= -26w ORDER BY updated DESC",
+      jql: "PROJECT_CLAUSE AND status WAS Done AND status != Done AND updated >= -26w ORDER BY updated DESC",
     },
     template: {
       pillar: "quality",
@@ -151,7 +214,7 @@ export const REPORT_SECTIONS: ReportSection[] = [
       sheet: "4_WIP",
       label: "Work in Progress (current snapshot)",
       metrics: "Work in Progress",
-      jql: 'project IN (LSCI, LVAIRD) AND status IN ("In Progress", "In Development", "Under Review", "Ready for Testing", "Approval", "Ready for Development", "Planning") ORDER BY priority DESC',
+      jql: 'PROJECT_CLAUSE AND status IN ("In Progress", "In Development", "Under Review", "Ready for Testing", "Approval", "Ready for Development", "Planning") ORDER BY priority DESC',
     },
     template: {
       pillar: "flow",
@@ -167,7 +230,7 @@ export const REPORT_SECTIONS: ReportSection[] = [
       sheet: "10_UnplannedWork",
       label: "Unplanned Work (Bugs + Incidents completed)",
       metrics: "Planned vs. Unplanned (unplanned side)",
-      jql: "project IN (LSCI, LVAIRD) AND issuetype IN (Bug, Incident) AND status = Done AND resolved >= -26w ORDER BY resolved DESC",
+      jql: "PROJECT_CLAUSE AND issuetype IN (Bug, Incident) AND status = Done AND resolved >= -26w ORDER BY resolved DESC",
     },
     template: {
       pillar: "flow",
@@ -183,7 +246,7 @@ export const REPORT_SECTIONS: ReportSection[] = [
       sheet: "12_Blocked",
       label: "Blocked Issues (Dependencies)",
       metrics: "Cross-Team Dependencies",
-      jql: 'project IN (LSCI, LVAIRD) AND flagged = impediment ORDER BY updated DESC',
+      jql: 'PROJECT_CLAUSE AND flagged = impediment ORDER BY updated DESC',
     },
     template: {
       pillar: "flow",
@@ -201,7 +264,7 @@ export const REPORT_SECTIONS: ReportSection[] = [
       sheet: "5_BacklogReadiness",
       label: "Backlog Readiness",
       metrics: "Backlog Readiness",
-      jql: 'project IN (LSCI, LVAIRD) AND status = "Open" AND sprint is EMPTY AND issuetype IN (Story, Bug, Task, Research) ORDER BY priority DESC',
+      jql: 'PROJECT_CLAUSE AND status = "Open" AND sprint is EMPTY AND issuetype IN (Story, Bug, Task, Research) ORDER BY priority DESC',
     },
     template: {
       pillar: "backlog_health",
@@ -217,7 +280,7 @@ export const REPORT_SECTIONS: ReportSection[] = [
       sheet: "11_Discovery",
       label: "Discovery / Investigation Work",
       metrics: "Discovery & Investigation",
-      jql: 'project IN (LSCI, LVAIRD) AND issuetype IN (Research, Idea) AND status NOT IN (Done, Cancel) ORDER BY updated DESC',
+      jql: 'PROJECT_CLAUSE AND issuetype IN (Research, Idea) AND status NOT IN (Done, Cancel) ORDER BY updated DESC',
     },
     template: {
       pillar: "backlog_health",
@@ -233,7 +296,7 @@ export const REPORT_SECTIONS: ReportSection[] = [
       sheet: "14_StageDistribution",
       label: "All Open Items by Stage",
       metrics: "Stage Distribution",
-      jql: "project IN (LSCI, LVAIRD) AND status NOT IN (Done, Cancel) ORDER BY status ASC",
+      jql: "PROJECT_CLAUSE AND status NOT IN (Done, Cancel) ORDER BY status ASC",
     },
     template: {
       pillar: "backlog_health",
@@ -247,17 +310,21 @@ export const REPORT_SECTIONS: ReportSection[] = [
 
 /* ── Derived exports ────────────────────────────────────────── */
 
+/** Default sections (LSCI/LVAIRD) for backward compatibility */
+export const REPORT_SECTIONS: ReportSection[] = buildSectionsForTeam(DEFAULT_TEAM_ID);
+
 /** All query IDs required by the current report template */
 export const REPORT_QUERY_IDS: string[] = REPORT_SECTIONS.map((s) => s.id);
 
 /** Query IDs that need changelog expansion */
 export const CHANGELOG_QUERY_IDS: Set<string> = new Set(
-  REPORT_SECTIONS.filter((s) => s.needsChangelog).map((s) => s.id)
+  BASE_SECTIONS.filter((s) => s.needsChangelog).map((s) => s.id)
 );
 
 /** Convert to existing JiraQueryDef shape for backward compatibility */
-export function toJiraQueryDefs(): JiraQueryDef[] {
-  return REPORT_SECTIONS.map((s) => ({
+export function toJiraQueryDefs(teamId?: string): JiraQueryDef[] {
+  const sections = teamId ? buildSectionsForTeam(teamId) : REPORT_SECTIONS;
+  return sections.map((s) => ({
     id: s.id,
     sheet: s.query.sheet,
     label: s.query.label,

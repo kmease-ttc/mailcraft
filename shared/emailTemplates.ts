@@ -29,7 +29,7 @@ export const EMAIL_TEMPLATES: EmailDef[] = [
     recipients: "",
     bodyHtml: `${STYLE}
 <h2>Throughput & Work Type Distribution</h2>
-<p class="subtitle">Last 26 weeks — LSCI & LVAIRD</p>
+<p class="subtitle">Last 26 weeks — {{TEAM_LABEL}}</p>
 
 <div>
   <div class="metric-box"><div class="value">{{issueCount}}</div><div class="label">Issues Completed</div></div>
@@ -50,7 +50,7 @@ export const EMAIL_TEMPLATES: EmailDef[] = [
     recipients: "",
     bodyHtml: `${STYLE}
 <h2>Velocity & Velocity Stability</h2>
-<p class="subtitle">Last 26 weeks — LSCI & LVAIRD</p>
+<p class="subtitle">Last 26 weeks — {{TEAM_LABEL}}</p>
 
 <div>
   <div class="metric-box"><div class="value">{{issueCount}}</div><div class="label">Stories with Points</div></div>
@@ -71,7 +71,7 @@ export const EMAIL_TEMPLATES: EmailDef[] = [
     recipients: "",
     bodyHtml: `${STYLE}
 <h2>Cycle Time</h2>
-<p class="subtitle">Last 26 weeks — LSCI & LVAIRD</p>
+<p class="subtitle">Last 26 weeks — {{TEAM_LABEL}}</p>
 
 <div>
   <div class="metric-box"><div class="value">{{issueCount}}</div><div class="label">Issues Measured</div></div>
@@ -92,7 +92,7 @@ export const EMAIL_TEMPLATES: EmailDef[] = [
     recipients: "",
     bodyHtml: `${STYLE}
 <h2>Work in Progress</h2>
-<p class="subtitle">Current snapshot — LSCI & LVAIRD</p>
+<p class="subtitle">Current snapshot — {{TEAM_LABEL}}</p>
 
 <div>
   <div class="metric-box"><div class="value">{{issueCount}}</div><div class="label">Items In Progress</div></div>
@@ -113,7 +113,7 @@ export const EMAIL_TEMPLATES: EmailDef[] = [
     recipients: "",
     bodyHtml: `${STYLE}
 <h2>Backlog Readiness</h2>
-<p class="subtitle">Refined items not yet in a sprint — LSCI & LVAIRD</p>
+<p class="subtitle">Refined items not yet in a sprint — {{TEAM_LABEL}}</p>
 
 <div>
   <div class="metric-box"><div class="value">{{issueCount}}</div><div class="label">Ready Items</div></div>
@@ -134,7 +134,7 @@ export const EMAIL_TEMPLATES: EmailDef[] = [
     recipients: "",
     bodyHtml: `${STYLE}
 <h2>Defect Count & Density</h2>
-<p class="subtitle">Bugs created in last 26 weeks — LSCI & LVAIRD</p>
+<p class="subtitle">Bugs created in last 26 weeks — {{TEAM_LABEL}}</p>
 
 <div>
   <div class="metric-box"><div class="value">{{issueCount}}</div><div class="label">Total Bugs</div></div>
@@ -155,7 +155,7 @@ export const EMAIL_TEMPLATES: EmailDef[] = [
     recipients: "",
     bodyHtml: `${STYLE}
 <h2>Production Bugs (Defect Escape Rate)</h2>
-<p class="subtitle">Last 26 weeks — LSCI & LVAIRD</p>
+<p class="subtitle">Last 26 weeks — {{TEAM_LABEL}}</p>
 
 <div>
   <div class="metric-box"><div class="value">{{issueCount}}</div><div class="label">Prod Bugs</div></div>
@@ -176,7 +176,7 @@ export const EMAIL_TEMPLATES: EmailDef[] = [
     recipients: "",
     bodyHtml: `${STYLE}
 <h2>Regression Bugs</h2>
-<p class="subtitle">Last 26 weeks — LSCI & LVAIRD</p>
+<p class="subtitle">Last 26 weeks — {{TEAM_LABEL}}</p>
 
 <div>
   <div class="metric-box"><div class="value">{{issueCount}}</div><div class="label">Regressions</div></div>
@@ -197,7 +197,7 @@ export const EMAIL_TEMPLATES: EmailDef[] = [
     recipients: "",
     bodyHtml: `${STYLE}
 <h2>Rework (Reopened Issues)</h2>
-<p class="subtitle">Last 26 weeks — LSCI & LVAIRD</p>
+<p class="subtitle">Last 26 weeks — {{TEAM_LABEL}}</p>
 
 <div>
   <div class="metric-box"><div class="value">{{issueCount}}</div><div class="label">Reopened</div></div>
@@ -218,7 +218,7 @@ export const EMAIL_TEMPLATES: EmailDef[] = [
     recipients: "",
     bodyHtml: `${STYLE}
 <h2>Unplanned Work</h2>
-<p class="subtitle">Bugs + Incidents completed — last 26 weeks — LSCI & LVAIRD</p>
+<p class="subtitle">Bugs + Incidents completed — last 26 weeks — {{TEAM_LABEL}}</p>
 
 <div>
   <div class="metric-box"><div class="value">{{issueCount}}</div><div class="label">Unplanned Items</div></div>
@@ -239,7 +239,7 @@ export const EMAIL_TEMPLATES: EmailDef[] = [
     recipients: "",
     bodyHtml: `${STYLE}
 <h2>Discovery & Investigation Work</h2>
-<p class="subtitle">Spikes, research, investigations — last 26 weeks — LSCI & LVAIRD</p>
+<p class="subtitle">Spikes, research, investigations — last 26 weeks — {{TEAM_LABEL}}</p>
 
 <div>
   <div class="metric-box"><div class="value">{{issueCount}}</div><div class="label">Discovery Items</div></div>
@@ -260,7 +260,7 @@ export const EMAIL_TEMPLATES: EmailDef[] = [
     recipients: "",
     bodyHtml: `${STYLE}
 <h2>Blocked Issues (Dependencies)</h2>
-<p class="subtitle">Last 6 months — LSCI & LVAIRD</p>
+<p class="subtitle">Last 6 months — {{TEAM_LABEL}}</p>
 
 <div>
   <div class="metric-box"><div class="value">{{issueCount}}</div><div class="label">Blocked Issues</div></div>

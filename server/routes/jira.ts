@@ -10,7 +10,7 @@ import {
   runJqlQuery,
   flattenIssue,
 } from "../services/jira.js";
-import { REPORT_SECTIONS, CHANGELOG_QUERY_IDS } from "../../shared/reportManifest.js";
+import { REPORT_SECTIONS, CHANGELOG_QUERY_IDS, buildSectionsForTeam, buildSectionsForTeams } from "../../shared/reportManifest.js";
 import { JIRA_COLUMNS } from "../../shared/jiraQueries.js";
 import { db } from "../db/index.js";
 import { fetchRuns } from "../db/schema.js";
@@ -42,12 +42,18 @@ jiraRouter.post("/test", async (req, res) => {
 
 // Run selected JQL queries
 jiraRouter.post("/query", async (req, res) => {
-  const { credentials, queryIds } = req.body as JiraQueryRequest;
+  const { credentials, queryIds, teamId, teamIds } = req.body as JiraQueryRequest & { teamId?: string; teamIds?: string[] };
   if (!credentials?.domain || !queryIds?.length) {
     return res.status(400).json({ error: "Missing credentials or queries" });
   }
 
-  const selected = REPORT_SECTIONS.filter((s) => queryIds.includes(s.id));
+  // Support both teamIds (array, multi-select) and legacy teamId (single string)
+  const sections = teamIds?.length
+    ? buildSectionsForTeams(teamIds)
+    : teamId
+      ? buildSectionsForTeam(teamId)
+      : REPORT_SECTIONS;
+  const selected = sections.filter((s) => queryIds.includes(s.id));
   if (!selected.length) {
     return res.status(400).json({ error: "No valid query IDs" });
   }

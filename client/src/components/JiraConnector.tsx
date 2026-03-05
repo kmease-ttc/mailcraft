@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import type { CsvRow, JiraQueryResponse } from "@shared/types";
-import { REPORT_SECTIONS } from "@shared/reportManifest";
+import { REPORT_SECTIONS, TEAM_CONFIGS, DEFAULT_TEAM_ID, buildSectionsForTeams, teamLabel as getTeamLabel } from "@shared/reportManifest";
 import {
   Database,
   CheckCircle,
@@ -31,6 +31,11 @@ export function JiraConnector({ onParsed }: Props) {
   const [saveCreds, setSaveCreds] = useState(true);
   const [showToken, setShowToken] = useState(false);
 
+  // Team selection (multi)
+  const [selectedTeams, setSelectedTeams] = useState<Set<string>>(new Set([DEFAULT_TEAM_ID]));
+  const teamIds = Array.from(selectedTeams);
+  const sections = buildSectionsForTeams(teamIds);
+
   // Connection state
   const [testing, setTesting] = useState(false);
   const [connected, setConnected] = useState(false);
@@ -39,7 +44,7 @@ export function JiraConnector({ onParsed }: Props) {
 
   // Query selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(
-    new Set(REPORT_SECTIONS.map((s) => s.id))
+    new Set(sections.map((s) => s.id))
   );
 
   // Fetch state
@@ -93,11 +98,24 @@ export function JiraConnector({ onParsed }: Props) {
     }
   };
 
+  const toggleTeam = (id: string) => {
+    const next = new Set(selectedTeams);
+    if (next.has(id)) {
+      if (next.size > 1) next.delete(id);
+    } else {
+      next.add(id);
+    }
+    setSelectedTeams(next);
+    const newSections = buildSectionsForTeams(Array.from(next));
+    setSelectedIds(new Set(newSections.map((s) => s.id)));
+    setFetchResult(null);
+  };
+
   const toggleAll = () => {
-    if (selectedIds.size === REPORT_SECTIONS.length) {
+    if (selectedIds.size === sections.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(REPORT_SECTIONS.map((s) => s.id)));
+      setSelectedIds(new Set(sections.map((s) => s.id)));
     }
   };
 
@@ -120,6 +138,7 @@ export function JiraConnector({ onParsed }: Props) {
         body: JSON.stringify({
           credentials: creds,
           queryIds: Array.from(selectedIds),
+          teamIds,
         }),
       });
       const data: JiraQueryResponse = await res.json();
@@ -251,23 +270,45 @@ export function JiraConnector({ onParsed }: Props) {
         </div>
       </div>
 
-      {/* Query selector - only after connection */}
+      {/* Team + Query selector - only after connection */}
       {connected && (
         <div>
+          {/* Team multi-select */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Teams / Projects
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {TEAM_CONFIGS.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => toggleTeam(t.id)}
+                  className={`px-3 py-1.5 text-sm rounded-lg border transition-colors font-medium ${
+                    selectedTeams.has(t.id)
+                      ? "bg-indigo-500 border-indigo-500 text-white"
+                      : "bg-white border-gray-300 text-gray-600 hover:border-indigo-300 hover:text-indigo-600"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-lg font-semibold">Select Queries</h3>
             <button
               onClick={toggleAll}
               className="text-sm text-indigo-600 hover:text-indigo-800"
             >
-              {selectedIds.size === REPORT_SECTIONS.length
+              {selectedIds.size === sections.length
                 ? "Deselect All"
                 : "Select All"}
             </button>
           </div>
 
           <div className="space-y-1.5 max-h-80 overflow-y-auto">
-            {REPORT_SECTIONS.map((s) => (
+            {sections.map((s) => (
               <label
                 key={s.id}
                 className={`flex items-start gap-3 px-4 py-3 rounded-lg border cursor-pointer transition-colors ${

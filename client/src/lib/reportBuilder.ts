@@ -429,8 +429,10 @@ function insights(good: string[], improve: string[]): string {
 /* ── main report builder ─────────────────────────────────────── */
 
 export function buildFullReport(
-  results: JiraQueryResult[]
+  results: JiraQueryResult[],
+  teamLabel?: string
 ): string {
+  const teamName = teamLabel || "LSCI & LVAIRD";
   const resultIds = new Set(results.map((r) => r.queryId));
   const missing = REPORT_QUERY_IDS.filter((id) => !resultIds.has(id));
   if (missing.length > 0) {
@@ -905,7 +907,7 @@ export function buildFullReport(
       </tr>
     </table>
     <div style="margin-top:16px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.1);">
-      <p style="margin:0;opacity:0.6;font-size:13px;">LSCI &amp; LVAIRD &nbsp;&middot;&nbsp; 26 Weeks &nbsp;&middot;&nbsp; ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</p>
+      <p style="margin:0;opacity:0.6;font-size:13px;">${teamName} &nbsp;&middot;&nbsp; 26 Weeks &nbsp;&middot;&nbsp; ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</p>
     </div>
   </div>
 

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { JiraQueryResponse, JiraQueryResult } from "@shared/types";
-import { REPORT_QUERY_IDS } from "@shared/reportManifest";
+import { REPORT_QUERY_IDS, TEAM_CONFIGS, DEFAULT_TEAM_ID, buildSectionsForTeams, teamLabel as getTeamLabel } from "@shared/reportManifest";
 import { buildFullReport } from "../lib/reportBuilder";
 import {
   Database,
@@ -16,6 +16,24 @@ import {
 } from "lucide-react";
 
 export function ReportView() {
+  // Team (multi-select)
+  const [selectedTeams, setSelectedTeams] = useState<Set<string>>(new Set([DEFAULT_TEAM_ID]));
+  const teamIds = Array.from(selectedTeams);
+  const currentTeamLabel = getTeamLabel(teamIds);
+
+  const toggleTeam = (id: string) => {
+    const next = new Set(selectedTeams);
+    if (next.has(id)) {
+      if (next.size > 1) next.delete(id); // keep at least one
+    } else {
+      next.add(id);
+    }
+    setSelectedTeams(next);
+    setFetched(false);
+    setResults([]);
+    setSavedReportId(null);
+  };
+
   // Data
   const [results, setResults] = useState<JiraQueryResult[]>([]);
   const [fetching, setFetching] = useState(false);
@@ -40,7 +58,7 @@ export function ReportView() {
   const [saving, setSaving] = useState(false);
   const [savedReportId, setSavedReportId] = useState<number | null>(null);
 
-  const reportHtml = fetched ? buildFullReport(results) : "";
+  const reportHtml = fetched ? buildFullReport(results, currentTeamLabel) : "";
   const displayHtml = customHtml || reportHtml;
 
   const handleFetchAll = async () => {
@@ -63,7 +81,7 @@ export function ReportView() {
       const res = await fetch("/api/jira/query", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ credentials: creds, queryIds }),
+        body: JSON.stringify({ credentials: creds, queryIds, teamIds }),
       });
       const data: JiraQueryResponse = await res.json();
 
@@ -203,7 +221,24 @@ export function ReportView() {
           </p>
         </div>
 
-        <div className="flex gap-2 shrink-0">
+        <div className="flex gap-2 shrink-0 items-center">
+          {/* Team multi-select */}
+          <div className="flex gap-1.5">
+            {TEAM_CONFIGS.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => toggleTeam(t.id)}
+                className={`px-3 py-1.5 text-xs rounded-lg border transition-colors font-medium ${
+                  selectedTeams.has(t.id)
+                    ? "bg-indigo-500/60 border-indigo-400/50 text-white"
+                    : "bg-white/5 border-white/15 text-white/50 hover:text-white/80 hover:border-white/30"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
           {fetched && (
             <button
               onClick={() => setMode(mode === "preview" ? "edit" : "preview")}
