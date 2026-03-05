@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import type { ReportRecord, EmailLogRecord } from "@shared/types";
 import {
+  Download,
   FileText,
   ChevronDown,
   ChevronUp,
@@ -17,6 +18,18 @@ export function ReportHistory() {
   const [expandedHtml, setExpandedHtml] = useState("");
   const [emailLog, setEmailLog] = useState<EmailLogRecord[]>([]);
   const [loadingDetail, setLoadingDetail] = useState(false);
+
+  const handleDownloadReport = (html: string, subject: string) => {
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const safeName = subject.replace(/[^a-zA-Z0-9-_ ]/g, "").replace(/\s+/g, "-").toLowerCase();
+    a.download = `${safeName}-${dateStr}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   useEffect(() => {
     fetch("/api/reports")
@@ -157,6 +170,17 @@ export function ReportHistory() {
                       </div>
                     )}
 
+
+                    {/* Download */}
+                    <div className="px-5 py-3 border-b border-gray-200">
+                      <button
+                        onClick={() => handleDownloadReport(expandedHtml, report.subject)}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 rounded-md hover:bg-indigo-100 transition-colors"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        Download HTML
+                      </button>
+                    </div>
                     {/* Report HTML preview */}
                     <div
                       className="p-2"

@@ -4,6 +4,7 @@ import { REPORT_QUERY_IDS } from "@shared/reportManifest";
 import { buildFullReport } from "../lib/reportBuilder";
 import {
   Database,
+  Download,
   Loader2,
   Send,
   CheckCircle,
@@ -173,6 +174,17 @@ export function ReportView() {
     }
   };
 
+  const handleDownload = () => {
+    const blob = new Blob([displayHtml], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const dateStr = new Date().toISOString().slice(0, 10);
+    a.download = `sdlc-metrics-report-${dateStr}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const totalIssues = results.reduce((s, r) => s + r.issueCount, 0);
   const queryErrors = results.filter((r) => r.error).length;
 
@@ -336,6 +348,15 @@ export function ReportView() {
             </button>
           )}
 
+
+          {/* Download */}
+          <button
+            onClick={handleDownload}
+            className="inline-flex items-center gap-2 px-4 py-2.5 glass-card-hover transition-colors text-sm font-medium text-white/70 hover:text-white"
+          >
+            <Download className="w-4 h-4" />
+            Download HTML
+          </button>
           {/* Send */}
           {sent ? (
             <div className="flex items-center gap-2 text-green-400 font-medium">

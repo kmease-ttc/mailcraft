@@ -270,45 +270,77 @@ function avgAgeDays(rows: CsvRow[], dateCol: string): number {
   return count > 0 ? Math.round(total / count) : 0;
 }
 
+/** Get last 6 month keys (YYYY-MM) */
+function getLast6Months(): string[] {
+  const months: string[] = [];
+  const now = new Date();
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push(d.toISOString().slice(0, 7));
+  }
+  return months;
+}
+
+/** Email-safe sparkline bar chart */
+function miniChart(values: number[], color: string): string {
+  if (values.length < 2 || values.every(v => v === 0)) return "";
+  const max = Math.max(...values, 1);
+  const barW = Math.max(6, Math.floor(56 / values.length));
+  const bars = values.map((v, i) => {
+    const h = Math.max(2, Math.round((v / max) * 28));
+    const isLast = i === values.length - 1;
+    return `<td style="vertical-align:bottom;padding:0 1px;">
+      <div style="width:${barW}px;height:${h}px;background:${color};opacity:${isLast ? "1" : "0.35"};border-radius:2px 2px 0 0;"></div>
+    </td>`;
+  }).join("");
+  return `<table style="border-collapse:collapse;"><tr>${bars}</tr></table>`;
+}
+
 /* ── layout primitives ───────────────────────────────────────── */
 
-/** Metric box — clean card with trend badge; prior month shows below */
+/** KPI metric card with optional sparkline and accent bar */
 function metricBox(
   value: string | number,
   label: string,
   trend?: TrendInfo,
-  priorVal?: string | number
+  priorVal?: string | number,
+  sparkData?: number[],
+  accentColor?: string
 ): string {
+  const accent = accentColor || "#009add";
+
   let trendHtml = "";
   if (trend && trend.direction !== "flat") {
     const arrow = trend.direction === "up" ? "&uarr;" : "&darr;";
     const color = trend.isGood ? "#16a34a" : "#dc2626";
-    const bg    = trend.isGood ? "#ecfdf5" : "#fef2f2";
-    trendHtml = `
-      <div style="margin-top:6px;">
-        <span style="display:inline-block;font-size:10px;font-weight:600;color:${color};background:${bg};padding:2px 7px;border-radius:10px;">
-          ${arrow} ${fmt(Math.abs(trend.delta))}
-        </span>
-      </div>`;
+    const bg = trend.isGood ? "#ecfdf5" : "#fef2f2";
+    trendHtml = `<span style="display:inline-block;font-size:10px;font-weight:600;color:${color};background:${bg};padding:2px 7px;border-radius:10px;">${arrow} ${fmt(Math.abs(trend.delta))}</span>`;
   } else if (trend) {
-    trendHtml = `
-      <div style="margin-top:6px;">
-        <span style="display:inline-block;font-size:10px;color:#cbd5e1;">&mdash; flat</span>
-      </div>`;
+    trendHtml = `<span style="display:inline-block;font-size:10px;color:#cbd5e1;">&mdash; flat</span>`;
   }
 
   let priorHtml = "";
   if (priorVal !== undefined) {
-    priorHtml = `<div style="font-size:9px;color:#94a3b8;margin-top:4px;text-align:center;">Prior mo: ${priorVal}</div>`;
+    priorHtml = `<div style="font-size:9px;color:#94a3b8;margin-top:2px;">vs ${priorVal} prior mo</div>`;
   }
 
-  return `<td style="width:16.66%;text-align:center;vertical-align:top;padding:0 3px;">
-    <div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:5px;">${label}</div>
-    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px 6px 12px;min-height:76px;">
-      <div style="font-size:26px;font-weight:800;color:#0f172a;line-height:1;">${value}</div>
-      ${trendHtml}
+  const sparkHtml = sparkData ? miniChart(sparkData, accent) : "";
+
+  return `<td style="width:33.33%;padding:4px;">
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+      <div style="height:3px;background:${accent};"></div>
+      <div style="padding:14px 14px 12px;">
+        <div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;">${label}</div>
+        <table style="border-collapse:collapse;width:100%;"><tr>
+          <td style="vertical-align:top;padding:0;">
+            <div style="font-size:28px;font-weight:800;color:#0f172a;line-height:1;">${value}</div>
+            <div style="margin-top:5px;">${trendHtml}</div>
+            ${priorHtml}
+          </td>
+          ${sparkHtml ? `<td style="vertical-align:bottom;padding:0;text-align:right;width:70px;">${sparkHtml}</td>` : ""}
+        </tr></table>
+      </div>
     </div>
-    ${priorHtml}
   </td>`;
 }
 
@@ -522,6 +554,28 @@ export function buildFullReport(
     direction: densityDelta > 0.5 ? "up" : densityDelta < -0.5 ? "down" : "flat",
     isGood: densityDelta <= 0,
   };
+
+  // Sparkline data — last 6 months
+  const last6 = getLast6Months();
+  const velocityByMonth = groupByMonth(velocity?.rows || [], "Resolved");
+  const throughputByMonth = groupByMonth(throughput?.rows || [], "Resolved");
+  const storiesByMonthMap = groupByMonth(
+    (throughput?.rows || []).filter(isStory), "Resolved"
+  );
+  const bugsByMonthMap = groupByMonth(allBugs?.rows || [], "Created");
+  const unplannedByMonthMap = groupByMonth(unplanned?.rows || [], "Resolved");
+
+  const ptsSpark = last6.map(m =>
+    (velocityByMonth.get(m) || []).reduce((s, r) => s + (parseFloat(r["Story Points"]) || 0), 0)
+  );
+  const storiesSpark = last6.map(m => (storiesByMonthMap.get(m) || []).length);
+  const bugsSpark = last6.map(m => (bugsByMonthMap.get(m) || []).length);
+  const unplannedSpark = last6.map(m => (unplannedByMonthMap.get(m) || []).length);
+  const densitySpark = last6.map((m) => {
+    const comp = (throughputByMonth.get(m) || []).length;
+    const bugs = (bugsByMonthMap.get(m) || []).length;
+    return comp > 0 ? Math.round((bugs / comp) * 100) : 0;
+  });
 
   // Velocity per sprint (strip "Sprint" prefix)
   const sprintVelocity = velocity
@@ -869,14 +923,16 @@ export function buildFullReport(
 
     <p style="margin:0 0 16px;font-size:12px;color:#475569;line-height:1.6;">Over 26 weeks: <strong>${totalCompleted} items</strong> completed (${storiesCompleted} stories, ${fmt(totalPts)} pts), defect density <strong>${defectDensity}%</strong>. ${parseFloat(unplannedRatio || "0") < 20 ? `Unplanned work low at ${unplannedRatio}%.` : `Unplanned work at ${unplannedRatio}% — worth monitoring.`} ${agingCount > 0 ? `${agingCount} items aging.` : "Backlog is clean."}</p>
 
-    <table style="border-collapse:separate;border-spacing:4px 0;width:100%;table-layout:fixed;margin-bottom:4px;">
+    <table style="border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;margin-bottom:4px;">
       <tr>
-      ${metricBox(fmt(ptsThisMonth), "Story Pts", ptsTrend, fmt(ptsPriorMonth))}
-      ${metricBox(storiesThisMonth, "Stories Done", storiesTrend, storiesPriorMonth)}
-      ${metricBox(storiesInProgress, "In Progress")}
-      ${metricBox(bugsTrend?.currentVal ?? totalBugs, "Bugs Filed", bugsTrend, bugsTrend?.priorVal)}
-      ${metricBox(lastMonthDensity + "%", "Defect Density", densityTrend)}
-      ${metricBox(unplannedTrend?.currentVal ?? unplannedCount, "Unplanned", unplannedTrend, unplannedTrend?.priorVal)}
+      ${metricBox(fmt(ptsThisMonth), "Story Pts", ptsTrend, fmt(ptsPriorMonth), ptsSpark, "#009add")}
+      ${metricBox(storiesThisMonth, "Stories Done", storiesTrend, storiesPriorMonth, storiesSpark, "#007eb4")}
+      ${metricBox(storiesInProgress, "In Progress", undefined, undefined, undefined, "#0891b2")}
+      </tr>
+      <tr>
+      ${metricBox(bugsTrend?.currentVal ?? totalBugs, "Bugs Filed", bugsTrend, bugsTrend?.priorVal, bugsSpark, "#dc2626")}
+      ${metricBox(lastMonthDensity + "%", "Defect Density", densityTrend, undefined, densitySpark, "#e05252")}
+      ${metricBox(unplannedTrend?.currentVal ?? unplannedCount, "Unplanned", unplannedTrend, unplannedTrend?.priorVal, unplannedSpark, "#f59e0b")}
       </tr>
     </table>
 
@@ -1018,6 +1074,36 @@ export function buildFullReport(
       const byType = countBy(backlog.rows, "Issue Type");
       return typeDistributionBar(byType);
     })() : '<p style="color:#94a3b8;font-size:11px;">No items in Ready for Development.</p>'}
+
+    ${metric("Discovery & Investigation", `${discovery?.issueCount || 0} research and spike items.`)}
+    ${discovery && discovery.issueCount > 0 ? (() => {
+      const byType = countBy(discovery.rows, "Issue Type");
+      return typeDistributionBar(byType);
+    })() : '<p style="color:#94a3b8;font-size:11px;">No discovery or spike items found.</p>'}
+
+    ${metric("Aging Backlog", `${agingCount} items untouched 30+ days${agingCount > 0 ? ` — avg ${agingAvgDays} days old.` : "."}`)}
+    ${agingCount > 0 ? `<table style="border-collapse:separate;border-spacing:6px 0;width:100%;table-layout:fixed;margin:8px 0;">
+      <tr>
+        <td style="width:33%;text-align:center;padding:0;">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 8px;">
+            <div style="font-size:22px;font-weight:800;color:#f59e0b;">${agingCount}</div>
+            <div style="font-size:9px;color:#94a3b8;margin-top:2px;">Total Aging</div>
+          </div>
+        </td>
+        <td style="width:33%;text-align:center;padding:0;">
+          <div style="background:${agingOver90 > 0 ? "#fef2f2" : "#fff"};border:1px solid ${agingOver90 > 0 ? "#fecaca" : "#e2e8f0"};border-radius:10px;padding:12px 8px;">
+            <div style="font-size:22px;font-weight:800;color:${agingOver90 > 0 ? "#dc2626" : "#94a3b8"};">${agingOver90}</div>
+            <div style="font-size:9px;color:#94a3b8;margin-top:2px;">90+ Days</div>
+          </div>
+        </td>
+        <td style="width:33%;text-align:center;padding:0;">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 8px;">
+            <div style="font-size:22px;font-weight:800;color:#64748b;">${agingAvgDays}d</div>
+            <div style="font-size:9px;color:#94a3b8;margin-top:2px;">Avg Age</div>
+          </div>
+        </td>
+      </tr>
+    </table>` : '<p style="color:#16a34a;font-size:11px;">No aging items — backlog is fresh.</p>'}
 
     ${insights(backlogGood, backlogImprove)}
 
