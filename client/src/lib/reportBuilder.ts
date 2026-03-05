@@ -254,22 +254,6 @@ function computeTrend(
   return { currentVal: curCount, priorVal: priCount, delta, pctChange, direction, isGood };
 }
 
-function avgAgeDays(rows: CsvRow[], dateCol: string): number {
-  const now = Date.now();
-  let total = 0;
-  let count = 0;
-  for (const row of rows) {
-    const d = row[dateCol];
-    if (!d) continue;
-    const ms = now - new Date(d).getTime();
-    if (ms > 0) {
-      total += ms / (1000 * 60 * 60 * 24);
-      count++;
-    }
-  }
-  return count > 0 ? Math.round(total / count) : 0;
-}
-
 /** Get last 6 month keys (YYYY-MM) */
 function getLast6Months(): string[] {
   const months: string[] = [];
@@ -659,41 +643,15 @@ export function buildFullReport(
     isGood: ctDelta <= 0,
   };
 
-  // Aging backlog
-  const agingCount = aging?.issueCount || 0;
-  const agingAvgDays = aging ? avgAgeDays(aging.rows, "Updated") : 0;
-  const agingOver90 = aging
-    ? aging.rows.filter((r) => {
-        const d = r["Updated"];
-        if (!d) return false;
-        return (Date.now() - new Date(d).getTime()) / (1000 * 60 * 60 * 24) > 90;
-      }).length
-    : 0;
   // Stage distribution — group all open items by status
   const stageMap = new Map<string, number>();
-  const stageAgingMap = new Map<string, number>(); // count of items 30+ days old per stage
-  const GROOMED_STAGES = new Set(["open", "ready for development", "ready for dev", "ready", "groomed", "refined", "selected for development"]);
   if (stageDist) {
     for (const row of stageDist.rows) {
       const status = row["Status"] || "Unknown";
       stageMap.set(status, (stageMap.get(status) || 0) + 1);
-      const updated = row["Updated"];
-      if (updated) {
-        const daysSince = (Date.now() - new Date(updated).getTime()) / (1000 * 60 * 60 * 24);
-        if (daysSince >= 30) {
-          stageAgingMap.set(status, (stageAgingMap.get(status) || 0) + 1);
-        }
-      }
     }
   }
   const totalOpenItems = stageDist?.issueCount || 0;
-  let agingGroomedCount = 0;
-  for (const [status, count] of stageAgingMap) {
-    if (GROOMED_STAGES.has(status.toLowerCase())) {
-      agingGroomedCount += count;
-    }
-  }
-  const totalAgingAcrossStages = [...stageAgingMap.values()].reduce((s, n) => s + n, 0);
 
   // Velocity stability
   const sprintPtsArr = [...sprintVelocity.values()];
@@ -746,14 +704,10 @@ export function buildFullReport(
     let score = 0;
     // Ready items — having groomed work available is good
     const ready = backlog?.issueCount || 0;
-    if (ready >= 15) score += 25; else if (ready >= 10) score += 20; else if (ready >= 5) score += 15; else score += 5;
+    if (ready >= 15) score += 50; else if (ready >= 10) score += 40; else if (ready >= 5) score += 25; else score += 10;
     // Discovery work is positive — large backlog of new/discovery items is fine
     const disc = discovery?.issueCount || 0;
-    if (disc >= 5) score += 25; else if (disc > 0) score += 20; else score += 12;
-    // Aging GROOMED backlog is critical — items ready for dev but untouched
-    if (agingGroomedCount === 0) score += 30; else if (agingGroomedCount <= 3) score += 20; else if (agingGroomedCount <= 8) score += 10; else score += 2;
-    // Overall aging across all stages (less weight — early-stage aging is less concerning)
-    if (totalAgingAcrossStages === 0) score += 20; else if (totalAgingAcrossStages <= 10) score += 15; else if (totalAgingAcrossStages <= 25) score += 10; else score += 5;
+    if (disc >= 5) score += 50; else if (disc > 0) score += 40; else score += 20;
     return score;
   })();
 
@@ -845,12 +799,6 @@ export function buildFullReport(
   if ((backlog?.issueCount || 0) > 0 && (backlog?.issueCount || 0) < 5) backlogImprove.push(`Only ${backlog!.issueCount} items ready — backlog may run dry`);
   if ((discovery?.issueCount || 0) > 0) backlogGood.push(`${discovery!.issueCount} research/spikes completed — healthy discovery pipeline`);
   if (totalOpenItems > 0) backlogGood.push(`${totalOpenItems} total open items across ${stageMap.size} stages`);
-  if (agingGroomedCount === 0 && agingCount > 0) backlogGood.push("No aging items in groomed stages");
-  if (agingGroomedCount > 0) backlogImprove.push(`${agingGroomedCount} groomed items aging 30+ days — ready work sitting idle`);
-  if (agingCount === 0) backlogGood.push("No stale backlog items");
-  if (agingOver90 > 0) backlogImprove.push(`${agingOver90} items untouched 90+ days`);
-  if (agingAvgDays > 60 && agingCount > 0) backlogImprove.push(`Average aging item is ${agingAvgDays} days old`);
-  if (agingAvgDays > 0 && agingAvgDays <= 45 && agingCount > 0) backlogGood.push(`Aging items averaging ${agingAvgDays} days — manageable`);
 
   // ── Backlog pipeline data ──────────────────────────────────
   const readyCount = backlog?.issueCount || 0;
@@ -885,8 +833,7 @@ export function buildFullReport(
   const renderStageGroup = (entries: [string, number][]) => {
     if (entries.length === 0) return '<p style="color:#94a3b8;font-size:11px;">No items.</p>';
     const cards = entries.map(([status, count]) => {
-      const ai = stageAgingMap.get(status) || 0;
-      return stageCard(status, count, gc(status), ai > 0 ? ai + " aging" : undefined);
+      return stageCard(status, count, gc(status));
     });
     while (cards.length % 4 !== 0) cards.push('<td style="width:25%;padding:0 4px;"></td>');
     const trs: string[] = [];
@@ -925,7 +872,7 @@ export function buildFullReport(
     <h2 style="margin:0 0 2px;font-size:17px;font-weight:800;letter-spacing:-0.3px;">Executive Summary</h2>
     <p style="margin:0 0 14px;font-size:11px;color:#94a3b8;">${curMonthLabel} vs prior &nbsp;&middot;&nbsp; <span style="color:#16a34a;">&uarr; good</span> &nbsp; <span style="color:#dc2626;">&darr; needs attention</span></p>
 
-    <p style="margin:0 0 16px;font-size:12px;color:#475569;line-height:1.6;">Over 26 weeks: <strong>${totalCompleted} items</strong> completed (${storiesCompleted} stories, ${fmt(totalPts)} pts), defect density <strong>${defectDensity}%</strong>. ${parseFloat(unplannedRatio || "0") < 20 ? `Unplanned work low at ${unplannedRatio}%.` : `Unplanned work at ${unplannedRatio}% — worth monitoring.`} ${agingCount > 0 ? `${agingCount} items aging.` : "Backlog is clean."}</p>
+    <p style="margin:0 0 16px;font-size:12px;color:#475569;line-height:1.6;">Over 26 weeks: <strong>${totalCompleted} items</strong> completed (${storiesCompleted} stories, ${fmt(totalPts)} pts), defect density <strong>${defectDensity}%</strong>. ${parseFloat(unplannedRatio || "0") < 20 ? `Unplanned work low at ${unplannedRatio}%.` : `Unplanned work at ${unplannedRatio}% — worth monitoring.`} Backlog is clean.</p>
 
     <table style="border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;margin-bottom:4px;">
       <tr>
@@ -1084,30 +1031,6 @@ export function buildFullReport(
       const byType = countBy(discovery.rows, "Issue Type");
       return typeDistributionBar(byType);
     })() : '<p style="color:#94a3b8;font-size:11px;">No discovery or spike items found.</p>'}
-
-    ${metric("Aging Backlog", `${agingCount} items untouched 30+ days${agingCount > 0 ? ` — avg ${agingAvgDays} days old.` : "."}`)}
-    ${agingCount > 0 ? `<table style="border-collapse:separate;border-spacing:6px 0;width:100%;table-layout:fixed;margin:8px 0;">
-      <tr>
-        <td style="width:33%;text-align:center;padding:0;">
-          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 8px;">
-            <div style="font-size:22px;font-weight:800;color:#f59e0b;">${agingCount}</div>
-            <div style="font-size:9px;color:#94a3b8;margin-top:2px;">Total Aging</div>
-          </div>
-        </td>
-        <td style="width:33%;text-align:center;padding:0;">
-          <div style="background:${agingOver90 > 0 ? "#fef2f2" : "#fff"};border:1px solid ${agingOver90 > 0 ? "#fecaca" : "#e2e8f0"};border-radius:10px;padding:12px 8px;">
-            <div style="font-size:22px;font-weight:800;color:${agingOver90 > 0 ? "#dc2626" : "#94a3b8"};">${agingOver90}</div>
-            <div style="font-size:9px;color:#94a3b8;margin-top:2px;">90+ Days</div>
-          </div>
-        </td>
-        <td style="width:33%;text-align:center;padding:0;">
-          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 8px;">
-            <div style="font-size:22px;font-weight:800;color:#64748b;">${agingAvgDays}d</div>
-            <div style="font-size:9px;color:#94a3b8;margin-top:2px;">Avg Age</div>
-          </div>
-        </td>
-      </tr>
-    </table>` : '<p style="color:#16a34a;font-size:11px;">No aging items — backlog is fresh.</p>'}
 
     ${insights(backlogGood, backlogImprove)}
 
