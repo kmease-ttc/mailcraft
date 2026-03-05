@@ -161,12 +161,14 @@ export function flattenIssue(issue: any, queryLabel: string): CsvRow {
   };
 }
 
-/** Extract the first date the issue transitioned to "In Progress" from changelog */
+/** Extract the first date the issue transitioned to an active work status from changelog */
 function extractInProgressDate(issue: any): string {
   const changelog = issue.changelog;
   if (!changelog || !changelog.histories) return "";
 
-  // Walk changelog oldest-first to find the first transition TO "In Progress"
+  const activeStatuses = new Set(["in progress", "in development"]);
+
+  // Walk changelog oldest-first to find the first transition TO an active status
   const histories = [...(changelog.histories as any[])].sort(
     (a, b) => new Date(a.created).getTime() - new Date(b.created).getTime()
   );
@@ -175,7 +177,7 @@ function extractInProgressDate(issue: any): string {
     for (const item of history.items || []) {
       if (
         item.field === "status" &&
-        (item.toString || "").toLowerCase() === "in progress"
+        activeStatuses.has((item.toString || "").toLowerCase())
       ) {
         return formatDate(history.created);
       }

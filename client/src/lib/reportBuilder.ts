@@ -780,8 +780,8 @@ export function buildFullReport(
   if (wipCount > 15) flowImprove.push(`${wipCount} items in progress — consider WIP limits`);
   if (parseFloat(unplannedRatio || "0") < 15) flowGood.push(`Only ${unplannedRatio}% unplanned work`);
   if (parseFloat(unplannedRatio || "0") >= 30) flowImprove.push(`${unplannedRatio}% reactive work`);
-  if ((blocked?.issueCount || 0) === 0) flowGood.push("No blocked items");
-  if ((blocked?.issueCount || 0) > 3) flowImprove.push(`${blocked!.issueCount} items blocked by dependencies`);
+  if ((blocked?.issueCount || 0) === 0) flowGood.push("No flagged impediments");
+  if ((blocked?.issueCount || 0) > 3) flowImprove.push(`${blocked!.issueCount} items flagged as blocked`);
 
   // backlogGood/backlogImprove populated after pipeline velocity metrics below
   const backlogGood: string[] = [];
@@ -791,7 +791,7 @@ export function buildFullReport(
   const readyCount = backlog?.issueCount || 0;
 
   // Stage color map & pipeline grouping
-  // Actual JIRA statuses: Future, Planning, Open, In Progress, Under Review, Done, Cancel
+  // Actual JIRA statuses: Future, Planning, Open, In Progress, In Development, Approval, Under Review, Ready for Testing, Ready for Development, Done, Cancel
   const SC: Record<string, string> = {
     "future": "#94a3b8",
     "planning": "#8b5cf6",
@@ -805,12 +805,13 @@ export function buildFullReport(
     "ready for development": "#16a34a", "ready for dev": "#16a34a", "ready": "#16a34a",
     "in development": "#009add", "developing": "#009add",
     "in review": "#a855f7", "code review": "#a855f7",
+    "approval": "#a855f7",
     "in testing": "#f59e0b", "qa": "#f59e0b",
     "blocked": "#dc2626",
   };
   const gc = (s: string) => SC[s.toLowerCase()] || "#64748b";
 
-  const DEV_STAGE_KEYS = new Set(["open", "in progress", "under review", "ready for testing", "ready for development", "ready for dev", "ready", "selected for development", "in development", "developing", "in review", "code review", "peer review", "in testing", "qa", "testing", "blocked"]);
+  const DEV_STAGE_KEYS = new Set(["open", "in progress", "under review", "ready for testing", "ready for development", "ready for dev", "ready", "selected for development", "in development", "developing", "in review", "code review", "peer review", "in testing", "qa", "testing", "blocked", "approval"]);
   const PLANNING_STAGE_KEYS = new Set(["future", "planning", "backlog", "new", "to do", "discovery", "investigation", "research", "in design", "design", "groomed", "refined", "grooming"]);
 
   const devStageEntries = [...stageMap.entries()].filter(([s]) => DEV_STAGE_KEYS.has(s.toLowerCase())).sort((a, b) => b[1] - a[1]);
@@ -1036,14 +1037,14 @@ export function buildFullReport(
     ${allBugs ? monthlyTrendChart(allBugs.rows, "Created", "#e05252") : ""}
     ${allBugs ? criticalItemsTable(allBugs.rows, ["Key", "Summary", "Priority", "Status", "Created"]) : ""}
 
-    ${metric("Escape Rate", `${prodBugs?.issueCount || 0} bugs reached prod (${fmt(escapeRate)}%). Escape = prod bugs ÷ completed.`, escapeRateGrade)}
+    ${metric("Escape Rate", `${prodBugs?.issueCount || 0} high-severity bugs (${fmt(escapeRate)}%). Critical/Highest priority bugs ÷ completed.`, escapeRateGrade)}
     ${
       prodBugs && prodBugs.issueCount > 0
         ? criticalItemsTable(prodBugs.rows, ["Key", "Summary", "Priority", "Created"])
-        : '<p style="color:#16a34a;font-size:11px;">No production escapes.</p>'
+        : '<p style="color:#16a34a;font-size:11px;">No high-severity bugs found.</p>'
     }
 
-    ${metric("Regressions", `${regressions?.issueCount || 0} features broke after changes (${fmt(regressionRate)}%). Bugs labeled "regression".`, regressionGrade)}
+    ${metric("Regressions", `${regressions?.issueCount || 0} features broke after changes (${fmt(regressionRate)}%). Bugs with "regression" in summary or label.`, regressionGrade)}
     ${regressions ? criticalItemsTable(regressions.rows, ["Key", "Summary", "Priority", "Created"]) : ""}
 
     ${metric("Rework", `${rework?.issueCount || 0} reopened after Done (${fmt(reworkRate)}%). Items whose status reverted from Done.`, reworkGrade)}
@@ -1070,7 +1071,7 @@ export function buildFullReport(
       { label: "Unplanned", pct: parseFloat(unplannedRatio || "0"), color: "#f97316" },
     ])}
 
-    ${metric("Dependencies", `${blocked?.issueCount || 0} items entered Blocked status.`)}
+    ${metric("Dependencies", `${blocked?.issueCount || 0} items flagged as blocked (impediment flag).`)}
     ${blocked ? criticalItemsTable(blocked.rows, ["Key", "Summary", "Priority", "Assignee", "Updated"]) : ""}
 
     ${insights(flowGood, flowImprove)}

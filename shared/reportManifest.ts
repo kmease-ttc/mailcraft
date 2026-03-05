@@ -66,7 +66,7 @@ export const REPORT_SECTIONS: ReportSection[] = [
       sheet: "3_CycleTime",
       label: "Cycle Time",
       metrics: "Cycle Time",
-      jql: 'project IN (LSCI, LVAIRD) AND status = Done AND resolved >= -26w AND status WAS "In Progress" ORDER BY resolved DESC',
+      jql: 'project IN (LSCI, LVAIRD) AND status = Done AND resolved >= -26w AND (status WAS "In Development" OR status WAS "In Progress") ORDER BY resolved DESC',
     },
     template: {
       pillar: "delivery",
@@ -101,7 +101,7 @@ export const REPORT_SECTIONS: ReportSection[] = [
       sheet: "7_ProdBugs",
       label: "Production Bugs (Defect Escape Rate)",
       metrics: "Defect Escape Rate",
-      jql: 'project IN (LSCI, LVAIRD) AND issuetype = Bug AND created >= -26w AND labels = "prod-bug" ORDER BY created DESC',
+      jql: 'project IN (LSCI, LVAIRD) AND issuetype = Bug AND created >= -26w AND priority IN (P0, P1) ORDER BY created DESC',
     },
     template: {
       pillar: "quality",
@@ -117,7 +117,7 @@ export const REPORT_SECTIONS: ReportSection[] = [
       sheet: "8_Regressions",
       label: "Regression Bugs",
       metrics: "Regression Rate",
-      jql: 'project IN (LSCI, LVAIRD) AND issuetype = Bug AND labels = "regression" AND created >= -26w ORDER BY created DESC',
+      jql: 'project IN (LSCI, LVAIRD) AND issuetype = Bug AND created >= -26w AND (summary ~ "regression" OR summary ~ "regress" OR labels = "regression") ORDER BY created DESC',
     },
     template: {
       pillar: "quality",
@@ -151,7 +151,7 @@ export const REPORT_SECTIONS: ReportSection[] = [
       sheet: "4_WIP",
       label: "Work in Progress (current snapshot)",
       metrics: "Work in Progress",
-      jql: 'project IN (LSCI, LVAIRD) AND status = "In Progress" ORDER BY priority DESC',
+      jql: 'project IN (LSCI, LVAIRD) AND status IN ("In Progress", "In Development", "Under Review", "Ready for Testing", "Approval", "Ready for Development", "Planning") ORDER BY priority DESC',
     },
     template: {
       pillar: "flow",
@@ -183,12 +183,12 @@ export const REPORT_SECTIONS: ReportSection[] = [
       sheet: "12_Blocked",
       label: "Blocked Issues (Dependencies)",
       metrics: "Cross-Team Dependencies",
-      jql: 'project IN (LSCI, LVAIRD) AND status WAS "Blocked" DURING (startOfMonth(-6), now()) ORDER BY updated DESC',
+      jql: 'project IN (LSCI, LVAIRD) AND flagged = impediment ORDER BY updated DESC',
     },
     template: {
       pillar: "flow",
       title: "Cross-Team Dependencies",
-      description: "Issues blocked by external dependencies.",
+      description: "Issues flagged as blocked — impediments and external dependencies.",
       trendDateColumn: "Updated",
       upIsGood: false,
     },
@@ -201,7 +201,7 @@ export const REPORT_SECTIONS: ReportSection[] = [
       sheet: "5_BacklogReadiness",
       label: "Backlog Readiness",
       metrics: "Backlog Readiness",
-      jql: 'project IN (LSCI, LVAIRD) AND status = "Open" AND sprint is EMPTY ORDER BY priority DESC',
+      jql: 'project IN (LSCI, LVAIRD) AND status = "Open" AND sprint is EMPTY AND issuetype IN (Story, Bug, Task, Research) ORDER BY priority DESC',
     },
     template: {
       pillar: "backlog_health",
