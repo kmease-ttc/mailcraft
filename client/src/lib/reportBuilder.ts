@@ -815,6 +815,7 @@ export function buildFullReport(
     "open": "#16a34a",
     "in progress": "#009add",
     "under review": "#a855f7",
+    "ready for testing": "#f59e0b",
     "cancel": "#dc2626",
     // Fallbacks for generic status names
     "backlog": "#94a3b8", "new": "#94a3b8", "to do": "#94a3b8",
@@ -826,7 +827,7 @@ export function buildFullReport(
   };
   const gc = (s: string) => SC[s.toLowerCase()] || "#64748b";
 
-  const DEV_STAGE_KEYS = new Set(["open", "in progress", "under review", "ready for development", "ready for dev", "ready", "selected for development", "in development", "developing", "in review", "code review", "peer review", "in testing", "qa", "testing", "blocked"]);
+  const DEV_STAGE_KEYS = new Set(["open", "in progress", "under review", "ready for testing", "ready for development", "ready for dev", "ready", "selected for development", "in development", "developing", "in review", "code review", "peer review", "in testing", "qa", "testing", "blocked"]);
   const PLANNING_STAGE_KEYS = new Set(["future", "planning", "backlog", "new", "to do", "discovery", "investigation", "research", "in design", "design", "groomed", "refined", "grooming"]);
 
   const devStageEntries = [...stageMap.entries()].filter(([s]) => DEV_STAGE_KEYS.has(s.toLowerCase())).sort((a, b) => b[1] - a[1]);

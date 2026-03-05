@@ -216,14 +216,14 @@ export const REPORT_SECTIONS: ReportSection[] = [
     query: {
       sheet: "11_Discovery",
       label: "Discovery / Investigation Work",
-      metrics: "Discovery & Investigation Ratio",
-      jql: 'project IN (LSCI, LVAIRD) AND labels IN ("spike", "research", "investigation") AND status = Done AND resolved >= -26w ORDER BY resolved DESC',
+      metrics: "Discovery & Investigation",
+      jql: 'project IN (LSCI, LVAIRD) AND issuetype IN (Research, Idea) AND status NOT IN (Done, Cancel) ORDER BY updated DESC',
     },
     template: {
       pillar: "backlog_health",
       title: "Discovery & Investigation",
-      description: "Spikes and research items completed to reduce uncertainty.",
-      trendDateColumn: "Resolved",
+      description: "Open research and idea items — discovery work reducing uncertainty.",
+      trendDateColumn: "Updated",
       upIsGood: true,
     },
   },
