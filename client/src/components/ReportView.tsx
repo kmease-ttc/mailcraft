@@ -235,21 +235,33 @@ export function ReportView() {
         </div>
 
         <div className="flex gap-2 shrink-0 items-center">
-          {/* Team multi-select */}
-          <div className="flex gap-1.5">
-            {TEAM_CONFIGS.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => toggleTeam(t.id)}
-                className={`px-3 py-1.5 text-xs rounded-lg border transition-colors font-medium ${
-                  selectedTeams.has(t.id)
-                    ? "bg-indigo-500/60 border-indigo-400/50 text-white"
-                    : "bg-white/5 border-white/15 text-white/50 hover:text-white/80 hover:border-white/30"
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
+          {/* Team multi-select dropdown */}
+          <div className="relative" ref={teamDropdownRef}>
+            <button
+              onClick={() => setTeamDropdownOpen(!teamDropdownOpen)}
+              className="flex items-center gap-2 px-3 py-2 text-sm bg-white/10 text-white border border-white/20 rounded-lg outline-none backdrop-blur-sm hover:bg-white/15 transition-colors min-w-[160px]"
+            >
+              <span className="truncate">{currentTeamLabel}</span>
+              <ChevronDown className={`w-3.5 h-3.5 text-white/50 shrink-0 transition-transform ${teamDropdownOpen ? "rotate-180" : ""}`} />
+            </button>
+            {teamDropdownOpen && (
+              <div className="absolute right-0 z-50 mt-1 w-56 bg-gray-900 border border-white/15 rounded-lg shadow-xl py-1">
+                {TEAM_CONFIGS.map((t) => (
+                  <label
+                    key={t.id}
+                    className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/10 cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedTeams.has(t.id)}
+                      onChange={() => toggleTeam(t.id)}
+                      className="rounded border-white/30 bg-transparent text-indigo-500 focus:ring-indigo-500"
+                    />
+                    <span className="text-sm text-white/80">{t.label}</span>
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
 
           {fetched && (
