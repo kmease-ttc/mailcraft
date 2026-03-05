@@ -800,6 +800,10 @@ export function buildFullReport(
   if ((discovery?.issueCount || 0) > 0) backlogGood.push(`${discovery!.issueCount} research/spikes completed — healthy discovery pipeline`);
   if (totalOpenItems > 0) backlogGood.push(`${totalOpenItems} total open items across ${stageMap.size} stages`);
 
+  // ── Executive summary highlights (top 3 each) ─────────────
+  const topGood = [...deliveryGood, ...qualityGood, ...flowGood, ...backlogGood].slice(0, 3);
+  const topImprove = [...deliveryImprove, ...qualityImprove, ...flowImprove, ...backlogImprove].slice(0, 3);
+
   // ── Backlog pipeline data ──────────────────────────────────
   const readyCount = backlog?.issueCount || 0;
 
@@ -874,6 +878,25 @@ export function buildFullReport(
 
     <p style="margin:0 0 16px;font-size:12px;color:#475569;line-height:1.6;">Over 26 weeks: <strong>${totalCompleted} items</strong> completed (${storiesCompleted} stories, ${fmt(totalPts)} pts), defect density <strong>${defectDensity}%</strong>. ${parseFloat(unplannedRatio || "0") < 20 ? `Unplanned work low at ${unplannedRatio}%.` : `Unplanned work at ${unplannedRatio}% — worth monitoring.`} Backlog is clean.</p>
 
+    <table style="border-collapse:separate;border-spacing:6px 0;width:100%;table-layout:fixed;margin:0 0 16px;">
+      <tr>
+      ${[
+        { label: "Delivery", score: deliveryScore },
+        { label: "Quality", score: qualityScore },
+        { label: "Flow", score: flowScore },
+        { label: "Backlog", score: backlogScore },
+      ].map(({ label, score }) => {
+        const { letter, color } = gradeFor(score);
+        return `<td style="width:25%;padding:0;text-align:center;">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px 4px 8px;">
+            <div style="font-size:28px;font-weight:900;color:${color};line-height:1;">${letter}</div>
+            <div style="font-size:9px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-top:4px;">${label}</div>
+          </div>
+        </td>`;
+      }).join("")}
+      </tr>
+    </table>
+
     <table style="border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;margin-bottom:4px;">
       <tr>
       ${metricBox(fmt(ptsThisMonth), "Story Pts", ptsTrend, fmt(ptsPriorMonth), ptsSpark, "#009add")}
@@ -888,6 +911,8 @@ export function buildFullReport(
     </table>
 
     <p style="font-size:10px;color:#cbd5e1;margin:8px 0 0;">26-week totals: ${totalCompleted} items &middot; ${storiesCompleted} stories &middot; ${fmt(totalPts)} pts &middot; ${totalBugs} bugs</p>
+
+    ${insights(topGood, topImprove)}
 
     <!-- ═══ PILLAR I : DELIVERY ═══ -->
     ${pillar("I", "Delivery Performance", "#009add", "Output cadence, velocity, and cycle time.", deliveryScore)}
