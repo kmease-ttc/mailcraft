@@ -37,7 +37,7 @@ export function ReportView() {
   const toggleTeam = (id: string) => {
     const next = new Set(selectedTeams);
     if (next.has(id)) {
-      if (next.size > 1) next.delete(id); // keep at least one
+      next.delete(id);
     } else {
       next.add(id);
     }
@@ -282,7 +282,7 @@ export function ReportView() {
           )}
           <button
             onClick={handleFetchAll}
-            disabled={fetching}
+            disabled={fetching || selectedTeams.size === 0}
             className="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-indigo-500/80 backdrop-blur-sm text-white rounded-lg hover:bg-indigo-500 disabled:opacity-50 transition-colors font-medium border border-indigo-400/30"
           >
             {fetching ? (

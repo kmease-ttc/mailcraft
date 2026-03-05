@@ -35,13 +35,14 @@ export interface TeamConfig {
 }
 
 export const TEAM_CONFIGS: TeamConfig[] = [
-  { id: "lsci-lvaird", label: "LSCI / LVAIRD", projects: ["LSCI", "LVAIRD"] },
+  { id: "lsci", label: "LSCI", projects: ["LSCI"] },
+  { id: "lvaird", label: "LVAIRD", projects: ["LVAIRD"] },
   { id: "rpmt", label: "RPMT", projects: ["RPMT"] },
   { id: "pxss", label: "PXSS", projects: ["PXSS"] },
   { id: "checkid", label: "CHECKID", projects: ["CHECKID"] },
 ];
 
-export const DEFAULT_TEAM_ID = "lsci-lvaird";
+export const DEFAULT_TEAM_ID = "lsci";
 
 /** Build JQL project clause from project keys */
 function projectClause(projects: string[]): string {

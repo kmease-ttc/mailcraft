@@ -115,7 +115,7 @@ export function JiraConnector({ onParsed }: Props) {
   const toggleTeam = (id: string) => {
     const next = new Set(selectedTeams);
     if (next.has(id)) {
-      if (next.size > 1) next.delete(id);
+      next.delete(id);
     } else {
       next.add(id);
     }
@@ -366,7 +366,7 @@ export function JiraConnector({ onParsed }: Props) {
 
           <button
             onClick={handleFetch}
-            disabled={selectedIds.size === 0 || fetching}
+            disabled={selectedIds.size === 0 || selectedTeams.size === 0 || fetching}
             className="mt-4 inline-flex items-center gap-2 px-6 py-2.5 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium"
           >
             {fetching ? (
