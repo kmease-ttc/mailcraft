@@ -469,7 +469,6 @@ export function buildFullReport(
   const unplanned = find("unplanned_work");
   const discovery = find("discovery");
   const blocked = find("blocked");
-  const aging = find("aging_backlog");
   const stageDist = find("stage_distribution");
 
   // Derived metrics

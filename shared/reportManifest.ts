@@ -228,22 +228,6 @@ export const REPORT_SECTIONS: ReportSection[] = [
     },
   },
   {
-    id: "aging_backlog",
-    query: {
-      sheet: "13_AgingBacklog",
-      label: "Aging Backlog (no update in 30+ days)",
-      metrics: "Aging Backlog",
-      jql: "project IN (LSCI, LVAIRD) AND status NOT IN (Done, Cancel) AND updated <= -30d ORDER BY updated ASC",
-    },
-    template: {
-      pillar: "backlog_health",
-      title: "Aging Backlog",
-      description: "Items with no activity for 30+ days.",
-      trendDateColumn: "Updated",
-      upIsGood: false,
-    },
-  },
-  {
     id: "stage_distribution",
     query: {
       sheet: "14_StageDistribution",

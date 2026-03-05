@@ -274,25 +274,4 @@ export const EMAIL_TEMPLATES: EmailDef[] = [
 <p>Best,<br>Kevin</p>`,
     tableColumns: ["Key", "Summary", "Priority", "Assignee", "Status", "Updated"],
   },
-  {
-    id: "aging_backlog",
-    queryId: "aging_backlog",
-    subject: "SDLC Metrics: Aging Backlog",
-    recipients: "",
-    bodyHtml: `${STYLE}
-<h2>Aging Backlog</h2>
-<p class="subtitle">Open items with no update in 30+ days — LSCI & LVAIRD</p>
-
-<div>
-  <div class="metric-box"><div class="value">{{issueCount}}</div><div class="label">Stale Items</div></div>
-</div>
-
-<p>These items haven't been updated in over 30 days and may need attention or cleanup:</p>
-
-{{DATA_TABLE}}
-
-<p>Consider closing, re-prioritizing, or updating these items.</p>
-<p>Best,<br>Kevin</p>`,
-    tableColumns: ["Key", "Summary", "Issue Type", "Priority", "Assignee", "Updated"],
-  },
 ];
