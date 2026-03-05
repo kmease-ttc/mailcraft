@@ -193,7 +193,7 @@ function dataTable(
   return html;
 }
 
-const DONE_STATUSES = new Set(["done", "closed", "cancelled", "resolved"]);
+const DONE_STATUSES = new Set(["done", "closed", "cancelled", "cancel", "resolved"]);
 
 function isDone(row: CsvRow): boolean {
   const s = (row["Status"] || "").toLowerCase().trim();
@@ -326,8 +326,8 @@ function metricBox(
 
   const sparkHtml = sparkData ? miniChart(sparkData, accent) : "";
 
-  return `<td style="width:33.33%;padding:4px;">
-    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+  return `<td style="width:33.33%;padding:4px;vertical-align:top;">
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;height:100%;min-height:110px;">
       <div style="height:3px;background:${accent};"></div>
       <div style="padding:14px 14px 12px;">
         <div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;">${label}</div>
@@ -673,7 +673,7 @@ export function buildFullReport(
   // Stage distribution — group all open items by status
   const stageMap = new Map<string, number>();
   const stageAgingMap = new Map<string, number>(); // count of items 30+ days old per stage
-  const GROOMED_STAGES = new Set(["ready for development", "ready for dev", "ready", "groomed", "refined", "selected for development"]);
+  const GROOMED_STAGES = new Set(["open", "ready for development", "ready for dev", "ready", "groomed", "refined", "selected for development"]);
   if (stageDist) {
     for (const row of stageDist.rows) {
       const status = row["Status"] || "Unknown";
@@ -857,21 +857,26 @@ export function buildFullReport(
   const readyCount = backlog?.issueCount || 0;
 
   // Stage color map & pipeline grouping
+  // Actual JIRA statuses: Future, Planning, Open, In Progress, Under Review, Done, Cancel
   const SC: Record<string, string> = {
-    "backlog": "#94a3b8", "new": "#94a3b8", "open": "#94a3b8", "to do": "#94a3b8",
-    "discovery": "#059669", "investigation": "#059669", "research": "#059669",
-    "in design": "#8b5cf6", "design": "#8b5cf6",
-    "groomed": "#06b6d4", "refined": "#06b6d4", "grooming": "#06b6d4",
-    "ready for development": "#16a34a", "ready for dev": "#16a34a", "ready": "#16a34a", "selected for development": "#16a34a",
-    "in progress": "#009add", "in development": "#009add", "developing": "#009add",
-    "in review": "#a855f7", "code review": "#a855f7", "peer review": "#a855f7",
-    "in testing": "#f59e0b", "qa": "#f59e0b", "testing": "#f59e0b",
+    "future": "#94a3b8",
+    "planning": "#8b5cf6",
+    "open": "#16a34a",
+    "in progress": "#009add",
+    "under review": "#a855f7",
+    "cancel": "#dc2626",
+    // Fallbacks for generic status names
+    "backlog": "#94a3b8", "new": "#94a3b8", "to do": "#94a3b8",
+    "ready for development": "#16a34a", "ready for dev": "#16a34a", "ready": "#16a34a",
+    "in development": "#009add", "developing": "#009add",
+    "in review": "#a855f7", "code review": "#a855f7",
+    "in testing": "#f59e0b", "qa": "#f59e0b",
     "blocked": "#dc2626",
   };
   const gc = (s: string) => SC[s.toLowerCase()] || "#64748b";
 
-  const DEV_STAGE_KEYS = new Set(["ready for development", "ready for dev", "ready", "selected for development", "in progress", "in development", "developing", "in review", "code review", "peer review", "in testing", "qa", "testing", "blocked"]);
-  const PLANNING_STAGE_KEYS = new Set(["backlog", "new", "open", "to do", "discovery", "investigation", "research", "in design", "design", "groomed", "refined", "grooming"]);
+  const DEV_STAGE_KEYS = new Set(["open", "in progress", "under review", "ready for development", "ready for dev", "ready", "selected for development", "in development", "developing", "in review", "code review", "peer review", "in testing", "qa", "testing", "blocked"]);
+  const PLANNING_STAGE_KEYS = new Set(["future", "planning", "backlog", "new", "to do", "discovery", "investigation", "research", "in design", "design", "groomed", "refined", "grooming"]);
 
   const devStageEntries = [...stageMap.entries()].filter(([s]) => DEV_STAGE_KEYS.has(s.toLowerCase())).sort((a, b) => b[1] - a[1]);
   const planningStageEntries = [...stageMap.entries()].filter(([s]) => PLANNING_STAGE_KEYS.has(s.toLowerCase())).sort((a, b) => b[1] - a[1]);

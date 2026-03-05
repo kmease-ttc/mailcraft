@@ -201,7 +201,7 @@ export const REPORT_SECTIONS: ReportSection[] = [
       sheet: "5_BacklogReadiness",
       label: "Backlog Readiness",
       metrics: "Backlog Readiness",
-      jql: 'project IN (LSCI, LVAIRD) AND status = "Ready for Development" AND sprint is EMPTY ORDER BY priority DESC',
+      jql: 'project IN (LSCI, LVAIRD) AND status = "Open" AND sprint is EMPTY ORDER BY priority DESC',
     },
     template: {
       pillar: "backlog_health",
@@ -233,7 +233,7 @@ export const REPORT_SECTIONS: ReportSection[] = [
       sheet: "13_AgingBacklog",
       label: "Aging Backlog (no update in 30+ days)",
       metrics: "Aging Backlog",
-      jql: "project IN (LSCI, LVAIRD) AND status NOT IN (Done, Closed, Cancelled) AND updated <= -30d ORDER BY updated ASC",
+      jql: "project IN (LSCI, LVAIRD) AND status NOT IN (Done, Cancel) AND updated <= -30d ORDER BY updated ASC",
     },
     template: {
       pillar: "backlog_health",
@@ -249,7 +249,7 @@ export const REPORT_SECTIONS: ReportSection[] = [
       sheet: "14_StageDistribution",
       label: "All Open Items by Stage",
       metrics: "Stage Distribution",
-      jql: "project IN (LSCI, LVAIRD) AND status NOT IN (Done, Closed, Cancelled) ORDER BY status ASC",
+      jql: "project IN (LSCI, LVAIRD) AND status NOT IN (Done, Cancel) ORDER BY status ASC",
     },
     template: {
       pillar: "backlog_health",
