@@ -48,12 +48,14 @@ jiraRouter.post("/query", async (req, res) => {
   }
 
   // Support both teamIds (array, multi-select) and legacy teamId (single string)
+  console.log("[jira/query] teamIds:", teamIds, "teamId:", teamId);
   const sections = teamIds?.length
     ? buildSectionsForTeams(teamIds)
     : teamId
       ? buildSectionsForTeam(teamId)
       : REPORT_SECTIONS;
   const selected = sections.filter((s) => queryIds.includes(s.id));
+  console.log("[jira/query] JQL sample:", selected[0]?.query.jql);
   if (!selected.length) {
     return res.status(400).json({ error: "No valid query IDs" });
   }
