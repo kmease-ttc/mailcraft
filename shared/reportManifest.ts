@@ -40,6 +40,7 @@ export const TEAM_CONFIGS: TeamConfig[] = [
   { id: "rpmt", label: "RPMT", projects: ["RPMT"] },
   { id: "pxss", label: "PXSS", projects: ["PXSS"] },
   { id: "checkid", label: "CHECKID", projects: ["CHECKID"] },
+  { id: "ctmpro", label: "CTMPRO", projects: ["CTMPRO"] },
 ];
 
 export const DEFAULT_TEAM_ID = "lsci";
