@@ -47,13 +47,10 @@ jiraRouter.post("/query", async (req, res) => {
     return res.status(400).json({ error: "Missing credentials or queries" });
   }
 
-  // Support both teamIds (array, multi-select) and legacy teamId (single string)
-  console.log("[jira/query] teamIds:", teamIds, "teamId:", teamId);
-  const sections = teamIds?.length
-    ? buildSectionsForTeams(teamIds)
-    : teamId
-      ? buildSectionsForTeam(teamId)
-      : REPORT_SECTIONS;
+  // Resolve which team(s) to query — single-select preferred
+  const effectiveTeams = teamIds?.length ? teamIds : teamId ? [teamId] : ["lsci"];
+  console.log("[jira/query] requested teamIds:", teamIds, "| effective:", effectiveTeams);
+  const sections = buildSectionsForTeams(effectiveTeams);
   const selected = sections.filter((s) => queryIds.includes(s.id));
   console.log("[jira/query] JQL sample:", selected[0]?.query.jql);
   if (!selected.length) {
@@ -100,13 +97,12 @@ jiraRouter.post("/query", async (req, res) => {
         : "error";
 
   // Persist to fetch_runs table (include teamIds so reports know which project)
-  const effectiveTeamIds = teamIds?.length ? teamIds : teamId ? [teamId] : null;
   const fetchRunResult = db
     .insert(fetchRuns)
     .values({
       status,
       queryIds: JSON.stringify(queryIds),
-      teamIds: effectiveTeamIds ? JSON.stringify(effectiveTeamIds) : null,
+      teamIds: JSON.stringify(effectiveTeams),
       resultsJson: JSON.stringify(results),
       totalRows: allRows.length,
       errorCount,
@@ -116,12 +112,14 @@ jiraRouter.post("/query", async (req, res) => {
     })
     .run();
 
-  const response: JiraQueryResponse = {
+  const response: JiraQueryResponse & { queriedTeams?: string[] } = {
     results,
     totalRows: allRows.length,
     columns: JIRA_COLUMNS,
     fetchRunId: Number(fetchRunResult.lastInsertRowid),
+    queriedTeams: effectiveTeams,
   };
 
+  console.log("[jira/query] response: teams=%s, totalRows=%d, errors=%d", effectiveTeams, allRows.length, errorCount);
   res.json(response);
 });

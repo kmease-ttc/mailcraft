@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import type { JiraQueryResponse, JiraQueryResult } from "@shared/types";
+import type { JiraQueryResult } from "@shared/types";
 import { TEAM_CONFIGS, DEFAULT_TEAM_ID, buildSectionsForTeams, teamLabel as getTeamLabel } from "@shared/reportManifest";
 import { buildFullReport } from "../lib/reportBuilder";
 import {
@@ -73,6 +73,10 @@ export function ReportView() {
   const displayHtml = customHtml || reportHtml;
 
   const handleFetchAll = async () => {
+    // Capture the team at fetch time to prevent stale closure issues
+    const fetchTeamIds = [selectedTeam];
+    const fetchQueryIds = buildSectionsForTeams(fetchTeamIds).map((s) => s.id);
+
     setFetching(true);
     setFetchError("");
     setSavedReportId(null);
@@ -87,12 +91,23 @@ export function ReportView() {
         return;
       }
 
+      console.log("[ReportView] Fetching for team:", fetchTeamIds);
       const res = await fetch("/api/jira/query", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ credentials: creds, queryIds, teamIds }),
+        body: JSON.stringify({
+          credentials: creds,
+          queryIds: fetchQueryIds,
+          teamIds: fetchTeamIds,
+        }),
       });
-      const data: JiraQueryResponse = await res.json();
+      const data = await res.json();
+
+      // Verify the response came back for the team we requested
+      if (data.queriedTeams && data.queriedTeams[0] !== selectedTeam) {
+        console.warn("[ReportView] Stale response: got", data.queriedTeams, "expected", selectedTeam);
+        return;
+      }
 
       if (data.results) {
         setResults(data.results);
