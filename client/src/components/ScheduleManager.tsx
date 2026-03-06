@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { ScheduleRecord, CreateScheduleRequest } from "@shared/types";
+import { TEAM_CONFIGS, DEFAULT_TEAM_ID, teamLabel as getTeamLabel } from "@shared/reportManifest";
 import {
   Clock,
   Plus,
@@ -9,6 +10,7 @@ import {
   CheckCircle,
   XCircle,
   X,
+  ChevronDown,
 } from "lucide-react";
 
 const CRON_PRESETS = [
@@ -36,8 +38,21 @@ export function ScheduleManager() {
   const [cronExpr, setCronExpr] = useState("0 9 * * 1");
   const [recipients, setRecipients] = useState("");
   const [subjectOverride, setSubjectOverride] = useState("");
+  const [selectedTeams, setSelectedTeams] = useState<Set<string>>(new Set([DEFAULT_TEAM_ID]));
+  const [teamDropdownOpen, setTeamDropdownOpen] = useState(false);
+  const teamDropdownRef = useRef<HTMLDivElement>(null);
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (teamDropdownRef.current && !teamDropdownRef.current.contains(e.target as Node)) {
+        setTeamDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   const fetchSchedules = () => {
     fetch("/api/schedules")
@@ -63,6 +78,7 @@ export function ScheduleManager() {
       cronExpr: cronExpr.trim(),
       recipients: recipients.trim(),
       subject: subjectOverride.trim() || undefined,
+      teamIds: Array.from(selectedTeams),
     };
 
     try {
@@ -126,6 +142,7 @@ export function ScheduleManager() {
     setCronExpr("0 9 * * 1");
     setRecipients("");
     setSubjectOverride("");
+    setSelectedTeams(new Set([DEFAULT_TEAM_ID]));
     setFormError("");
   };
 
@@ -241,6 +258,50 @@ export function ScheduleManager() {
             />
           </div>
 
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">
+              Teams / Projects
+            </label>
+            <div className="relative" ref={teamDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setTeamDropdownOpen(!teamDropdownOpen)}
+                className="w-full flex items-center justify-between px-3 py-2 border border-gray-200 rounded-lg bg-white text-left text-sm focus:ring-2 focus:ring-indigo-200 outline-none"
+              >
+                <span className="text-gray-800 truncate">
+                  {selectedTeams.size > 0 ? getTeamLabel(Array.from(selectedTeams)) : "Select teams..."}
+                </span>
+                <ChevronDown className={`w-4 h-4 text-gray-400 shrink-0 ml-2 transition-transform ${teamDropdownOpen ? "rotate-180" : ""}`} />
+              </button>
+              {teamDropdownOpen && (
+                <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg py-1">
+                  {TEAM_CONFIGS.map((t) => (
+                    <label
+                      key={t.id}
+                      className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedTeams.has(t.id)}
+                        onChange={() => {
+                          const next = new Set(selectedTeams);
+                          if (next.has(t.id)) next.delete(t.id);
+                          else next.add(t.id);
+                          setSelectedTeams(next);
+                        }}
+                        className="rounded border-gray-300 text-indigo-500 focus:ring-indigo-500"
+                      />
+                      <div>
+                        <span className="text-sm font-medium text-gray-800">{t.label}</span>
+                        <span className="text-xs text-gray-400 ml-1.5">({t.projects.join(", ")})</span>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
           {formError && (
             <p className="text-sm text-red-500">{formError}</p>
           )}
@@ -302,7 +363,10 @@ export function ScheduleManager() {
                   )}
                 </div>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  {cronToHuman(schedule.cronExpr)} &middot;{" "}
+                  {schedule.teamIds && schedule.teamIds.length > 0
+                    ? getTeamLabel(schedule.teamIds)
+                    : "All teams"}{" "}
+                  &middot; {cronToHuman(schedule.cronExpr)} &middot;{" "}
                   {schedule.recipients}
                   {schedule.lastRunAt && (
                     <>

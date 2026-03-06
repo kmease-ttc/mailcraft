@@ -115,6 +115,7 @@ export interface ScheduleRecord {
   recipients: string;
   subject: string | null;
   queryIds: string[] | null;
+  teamIds: string[] | null;
   enabled: boolean;
   lastRunAt: string | null;
   lastRunStatus: string | null;
@@ -129,6 +130,7 @@ export interface CreateScheduleRequest {
   recipients: string;
   subject?: string;
   queryIds?: string[];
+  teamIds?: string[];
   enabled?: boolean;
 }
 

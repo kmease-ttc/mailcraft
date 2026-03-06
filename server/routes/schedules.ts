@@ -54,7 +54,7 @@ schedulesRouter.post("/", (req, res) => {
       recipients: body.recipients,
       subject: body.subject || null,
       queryIds: body.queryIds ? JSON.stringify(body.queryIds) : null,
-      teamIds: (body as any).teamIds?.length ? JSON.stringify((body as any).teamIds) : null,
+      teamIds: body.teamIds?.length ? JSON.stringify(body.teamIds) : null,
       enabled: body.enabled !== false,
       createdAt: now,
       updatedAt: now,
@@ -92,8 +92,8 @@ schedulesRouter.patch("/:id", (req, res) => {
   if (body.subject !== undefined) updates.subject = body.subject || null;
   if (body.queryIds !== undefined)
     updates.queryIds = body.queryIds ? JSON.stringify(body.queryIds) : null;
-  if ((body as any).teamIds !== undefined)
-    updates.teamIds = (body as any).teamIds?.length ? JSON.stringify((body as any).teamIds) : null;
+  if (body.teamIds !== undefined)
+    updates.teamIds = body.teamIds?.length ? JSON.stringify(body.teamIds) : null;
   if (body.enabled !== undefined) updates.enabled = body.enabled;
 
   db.update(schedules).set(updates).where(eq(schedules.id, id)).run();

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import type { JiraQueryResponse, JiraQueryResult } from "@shared/types";
-import { REPORT_QUERY_IDS, TEAM_CONFIGS, DEFAULT_TEAM_ID, buildSectionsForTeams, teamLabel as getTeamLabel } from "@shared/reportManifest";
+import { TEAM_CONFIGS, DEFAULT_TEAM_ID, buildSectionsForTeams, teamLabel as getTeamLabel } from "@shared/reportManifest";
 import { buildFullReport } from "../lib/reportBuilder";
 import {
   Database,
@@ -71,6 +71,9 @@ export function ReportView() {
   const [saving, setSaving] = useState(false);
   const [savedReportId, setSavedReportId] = useState<number | null>(null);
 
+  const sections = buildSectionsForTeams(teamIds);
+  const queryIds = sections.map((s) => s.id);
+
   const reportHtml = fetched ? buildFullReport(results, currentTeamLabel) : "";
   const displayHtml = customHtml || reportHtml;
 
@@ -88,8 +91,6 @@ export function ReportView() {
         setFetching(false);
         return;
       }
-
-      const queryIds = REPORT_QUERY_IDS;
 
       const res = await fetch("/api/jira/query", {
         method: "POST",
@@ -288,7 +289,7 @@ export function ReportView() {
             {fetching ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Fetching all {REPORT_QUERY_IDS.length} queries...
+                Fetching all {queryIds.length} queries...
               </>
             ) : fetched ? (
               <>
