@@ -32,9 +32,9 @@ export function JiraConnector({ onParsed }: Props) {
   const [saveCreds, setSaveCreds] = useState(true);
   const [showToken, setShowToken] = useState(false);
 
-  // Team selection (multi)
-  const [selectedTeams, setSelectedTeams] = useState<Set<string>>(new Set([DEFAULT_TEAM_ID]));
-  const teamIds = Array.from(selectedTeams);
+  // Team selection (single)
+  const [selectedTeam, setSelectedTeam] = useState<string>(DEFAULT_TEAM_ID);
+  const teamIds = [selectedTeam];
   const sections = buildSectionsForTeams(teamIds);
   const [teamDropdownOpen, setTeamDropdownOpen] = useState(false);
   const teamDropdownRef = useRef<HTMLDivElement>(null);
@@ -112,15 +112,10 @@ export function JiraConnector({ onParsed }: Props) {
     }
   };
 
-  const toggleTeam = (id: string) => {
-    const next = new Set(selectedTeams);
-    if (next.has(id)) {
-      next.delete(id);
-    } else {
-      next.add(id);
-    }
-    setSelectedTeams(next);
-    const newSections = buildSectionsForTeams(Array.from(next));
+  const selectTeam = (id: string) => {
+    setSelectedTeam(id);
+    setTeamDropdownOpen(false);
+    const newSections = buildSectionsForTeams([id]);
     setSelectedIds(new Set(newSections.map((s) => s.id)));
     setFetchResult(null);
   };
