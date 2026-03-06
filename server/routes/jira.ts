@@ -48,7 +48,7 @@ jiraRouter.post("/query", async (req, res) => {
   }
 
   // Resolve which team(s) to query — single-select preferred
-  const effectiveTeams = teamIds?.length ? teamIds : teamId ? [teamId] : ["lsci"];
+  const effectiveTeams = teamIds?.length ? teamIds : teamId ? [teamId] : ["lcsi"];
   console.log("[jira/query] requested teamIds:", teamIds, "| effective:", effectiveTeams);
   const sections = buildSectionsForTeams(effectiveTeams);
   const selected = sections.filter((s) => queryIds.includes(s.id));

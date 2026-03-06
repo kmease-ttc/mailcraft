@@ -103,7 +103,7 @@ export async function executeScheduledRun(
 
   // 3. Build report HTML
   const bodyHtml = buildFullReport(results);
-  const teamName = scheduleTeamIds.length > 0 ? teamLabel(scheduleTeamIds) : "LSCI";
+  const teamName = scheduleTeamIds.length > 0 ? teamLabel(scheduleTeamIds) : "LCSI";
   const subject =
     schedule.subject ||
     `${teamName} — SDLC Performance Metrics — ${new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })}`;

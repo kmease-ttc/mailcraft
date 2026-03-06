@@ -35,7 +35,7 @@ export interface TeamConfig {
 }
 
 export const TEAM_CONFIGS: TeamConfig[] = [
-  { id: "lsci", label: "LSCI", projects: ["LSCI"] },
+  { id: "lcsi", label: "LCSI", projects: ["LCSI"] },
   { id: "lvaird", label: "LVAIRD", projects: ["LVAIRD"] },
   { id: "rpmt", label: "RPMT", projects: ["RPMT"] },
   { id: "pxss", label: "PXSS", projects: ["PXSS"] },
@@ -43,7 +43,7 @@ export const TEAM_CONFIGS: TeamConfig[] = [
   { id: "ctmpro", label: "CTMPRO", projects: ["CTMPRO"] },
 ];
 
-export const DEFAULT_TEAM_ID = "lsci";
+export const DEFAULT_TEAM_ID = "lcsi";
 
 /** Build JQL project clause from project keys */
 function projectClause(projects: string[]): string {
@@ -313,7 +313,7 @@ const BASE_SECTIONS: ReportSection[] = [
 
 /* ── Derived exports ────────────────────────────────────────── */
 
-/** Default sections (LSCI/LVAIRD) for backward compatibility */
+/** Default sections (LCSI/LVAIRD) for backward compatibility */
 export const REPORT_SECTIONS: ReportSection[] = buildSectionsForTeam(DEFAULT_TEAM_ID);
 
 /** All query IDs required by the current report template */

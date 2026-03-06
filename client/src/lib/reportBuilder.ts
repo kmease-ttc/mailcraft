@@ -432,7 +432,7 @@ export function buildFullReport(
   results: JiraQueryResult[],
   teamLabel?: string
 ): string {
-  const teamName = teamLabel || "LSCI & LVAIRD";
+  const teamName = teamLabel || "LCSI & LVAIRD";
   const resultIds = new Set(results.map((r) => r.queryId));
   const missing = REPORT_QUERY_IDS.filter((id) => !resultIds.has(id));
   if (missing.length > 0) {
