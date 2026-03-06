@@ -38,7 +38,7 @@ export function ScheduleManager() {
   const [cronExpr, setCronExpr] = useState("0 9 * * 1");
   const [recipients, setRecipients] = useState("");
   const [subjectOverride, setSubjectOverride] = useState("");
-  const [selectedTeams, setSelectedTeams] = useState<Set<string>>(new Set([DEFAULT_TEAM_ID]));
+  const [selectedTeam, setSelectedTeam] = useState<string>(DEFAULT_TEAM_ID);
   const [teamDropdownOpen, setTeamDropdownOpen] = useState(false);
   const teamDropdownRef = useRef<HTMLDivElement>(null);
   const [formError, setFormError] = useState("");
@@ -78,7 +78,7 @@ export function ScheduleManager() {
       cronExpr: cronExpr.trim(),
       recipients: recipients.trim(),
       subject: subjectOverride.trim() || undefined,
-      teamIds: Array.from(selectedTeams),
+      teamIds: [selectedTeam],
     };
 
     try {
@@ -142,7 +142,7 @@ export function ScheduleManager() {
     setCronExpr("0 9 * * 1");
     setRecipients("");
     setSubjectOverride("");
-    setSelectedTeams(new Set([DEFAULT_TEAM_ID]));
+    setSelectedTeam(DEFAULT_TEAM_ID);
     setFormError("");
   };
 
@@ -260,7 +260,7 @@ export function ScheduleManager() {
 
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">
-              Teams / Projects
+              Team / Project
             </label>
             <div className="relative" ref={teamDropdownRef}>
               <button
@@ -269,33 +269,29 @@ export function ScheduleManager() {
                 className="w-full flex items-center justify-between px-3 py-2 border border-gray-200 rounded-lg bg-white text-left text-sm focus:ring-2 focus:ring-indigo-200 outline-none"
               >
                 <span className="text-gray-800 truncate">
-                  {selectedTeams.size > 0 ? getTeamLabel(Array.from(selectedTeams)) : "Select teams..."}
+                  {getTeamLabel([selectedTeam])}
                 </span>
                 <ChevronDown className={`w-4 h-4 text-gray-400 shrink-0 ml-2 transition-transform ${teamDropdownOpen ? "rotate-180" : ""}`} />
               </button>
               {teamDropdownOpen && (
                 <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg py-1">
                   {TEAM_CONFIGS.map((t) => (
-                    <label
+                    <button
                       key={t.id}
-                      className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 cursor-pointer"
+                      onClick={() => {
+                        setSelectedTeam(t.id);
+                        setTeamDropdownOpen(false);
+                      }}
+                      className={`w-full flex items-center gap-3 px-4 py-2 hover:bg-gray-50 cursor-pointer text-left ${
+                        selectedTeam === t.id ? "bg-indigo-50" : ""
+                      }`}
                     >
-                      <input
-                        type="checkbox"
-                        checked={selectedTeams.has(t.id)}
-                        onChange={() => {
-                          const next = new Set(selectedTeams);
-                          if (next.has(t.id)) next.delete(t.id);
-                          else next.add(t.id);
-                          setSelectedTeams(next);
-                        }}
-                        className="rounded border-gray-300 text-indigo-500 focus:ring-indigo-500"
-                      />
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${selectedTeam === t.id ? "bg-indigo-500" : "bg-gray-300"}`} />
                       <div>
                         <span className="text-sm font-medium text-gray-800">{t.label}</span>
                         <span className="text-xs text-gray-400 ml-1.5">({t.projects.join(", ")})</span>
                       </div>
-                    </label>
+                    </button>
                   ))}
                 </div>
               )}

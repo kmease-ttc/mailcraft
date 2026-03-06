@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import type { CsvRow, JiraQueryResponse } from "@shared/types";
-import { REPORT_SECTIONS, TEAM_CONFIGS, DEFAULT_TEAM_ID, buildSectionsForTeams, teamLabel as getTeamLabel } from "@shared/reportManifest";
+import { TEAM_CONFIGS, DEFAULT_TEAM_ID, buildSectionsForTeams, teamLabel as getTeamLabel } from "@shared/reportManifest";
 import {
   Database,
   CheckCircle,
@@ -282,10 +282,10 @@ export function JiraConnector({ onParsed }: Props) {
       {/* Team + Query selector - only after connection */}
       {connected && (
         <div>
-          {/* Team multi-select dropdown */}
+          {/* Team selector */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Teams / Projects
+              Team / Project
             </label>
             <div className="relative" ref={teamDropdownRef}>
               <button
@@ -300,21 +300,19 @@ export function JiraConnector({ onParsed }: Props) {
               {teamDropdownOpen && (
                 <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg py-1">
                   {TEAM_CONFIGS.map((t) => (
-                    <label
+                    <button
                       key={t.id}
-                      className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 cursor-pointer"
+                      onClick={() => selectTeam(t.id)}
+                      className={`w-full flex items-center gap-3 px-4 py-2 hover:bg-gray-50 cursor-pointer text-left ${
+                        selectedTeam === t.id ? "bg-indigo-50" : ""
+                      }`}
                     >
-                      <input
-                        type="checkbox"
-                        checked={selectedTeams.has(t.id)}
-                        onChange={() => toggleTeam(t.id)}
-                        className="rounded border-gray-300 text-indigo-500 focus:ring-indigo-500"
-                      />
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${selectedTeam === t.id ? "bg-indigo-500" : "bg-gray-300"}`} />
                       <div>
                         <span className="text-sm font-medium text-gray-800">{t.label}</span>
                         <span className="text-xs text-gray-400 ml-1.5">({t.projects.join(", ")})</span>
                       </div>
-                    </label>
+                    </button>
                   ))}
                 </div>
               )}
@@ -361,7 +359,7 @@ export function JiraConnector({ onParsed }: Props) {
 
           <button
             onClick={handleFetch}
-            disabled={selectedIds.size === 0 || selectedTeams.size === 0 || fetching}
+            disabled={selectedIds.size === 0 || fetching}
             className="mt-4 inline-flex items-center gap-2 px-6 py-2.5 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium"
           >
             {fetching ? (
