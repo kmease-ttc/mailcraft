@@ -17,9 +17,9 @@ import {
 } from "lucide-react";
 
 export function ReportView() {
-  // Team (multi-select)
-  const [selectedTeams, setSelectedTeams] = useState<Set<string>>(new Set([DEFAULT_TEAM_ID]));
-  const teamIds = Array.from(selectedTeams);
+  // Team (single-select)
+  const [selectedTeam, setSelectedTeam] = useState<string>(DEFAULT_TEAM_ID);
+  const teamIds = [selectedTeam];
   const currentTeamLabel = getTeamLabel(teamIds);
   const [teamDropdownOpen, setTeamDropdownOpen] = useState(false);
   const teamDropdownRef = useRef<HTMLDivElement>(null);
@@ -34,14 +34,9 @@ export function ReportView() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const toggleTeam = (id: string) => {
-    const next = new Set(selectedTeams);
-    if (next.has(id)) {
-      next.delete(id);
-    } else {
-      next.add(id);
-    }
-    setSelectedTeams(next);
+  const selectTeam = (id: string) => {
+    setSelectedTeam(id);
+    setTeamDropdownOpen(false);
     setFetched(false);
     setResults([]);
     setSavedReportId(null);
@@ -236,7 +231,7 @@ export function ReportView() {
         </div>
 
         <div className="flex gap-2 shrink-0 items-center">
-          {/* Team multi-select dropdown */}
+          {/* Team selector */}
           <div className="relative" ref={teamDropdownRef}>
             <button
               onClick={() => setTeamDropdownOpen(!teamDropdownOpen)}
@@ -248,18 +243,16 @@ export function ReportView() {
             {teamDropdownOpen && (
               <div className="absolute right-0 z-50 mt-1 w-56 bg-gray-900 border border-white/15 rounded-lg shadow-xl py-1">
                 {TEAM_CONFIGS.map((t) => (
-                  <label
+                  <button
                     key={t.id}
-                    className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/10 cursor-pointer"
+                    onClick={() => selectTeam(t.id)}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 hover:bg-white/10 cursor-pointer text-left ${
+                      selectedTeam === t.id ? "bg-white/10" : ""
+                    }`}
                   >
-                    <input
-                      type="checkbox"
-                      checked={selectedTeams.has(t.id)}
-                      onChange={() => toggleTeam(t.id)}
-                      className="rounded border-white/30 bg-transparent text-indigo-500 focus:ring-indigo-500"
-                    />
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${selectedTeam === t.id ? "bg-indigo-400" : "bg-white/20"}`} />
                     <span className="text-sm text-white/80">{t.label}</span>
-                  </label>
+                  </button>
                 ))}
               </div>
             )}
