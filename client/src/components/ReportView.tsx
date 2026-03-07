@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import type { JiraQueryResult } from "@shared/types";
-import { TEAM_CONFIGS, DEFAULT_TEAM_ID, buildSectionsForTeams, teamLabel as getTeamLabel } from "@shared/reportManifest";
+import { TEAM_CONFIGS, DEFAULT_TEAM_ID, buildSectionsForTeams, teamLabel as getTeamLabel, teamLabelShort as getTeamLabelShort } from "@shared/reportManifest";
 import { buildFullReport } from "../lib/reportBuilder";
 import {
   Database,
@@ -252,11 +252,11 @@ export function ReportView() {
               onClick={() => setTeamDropdownOpen(!teamDropdownOpen)}
               className="flex items-center gap-2 px-3 py-2 text-sm bg-white/10 text-white border border-white/20 rounded-lg outline-none backdrop-blur-sm hover:bg-white/15 transition-colors min-w-[160px]"
             >
-              <span className="truncate">{currentTeamLabel}</span>
+              <span className="truncate">{getTeamLabelShort(teamIds)}</span>
               <ChevronDown className={`w-3.5 h-3.5 text-white/50 shrink-0 transition-transform ${teamDropdownOpen ? "rotate-180" : ""}`} />
             </button>
             {teamDropdownOpen && (
-              <div className="absolute right-0 z-50 mt-1 w-56 bg-gray-900 border border-white/15 rounded-lg shadow-xl py-1">
+              <div className="absolute right-0 z-50 mt-1 w-72 bg-gray-900 border border-white/15 rounded-lg shadow-xl py-1">
                 {TEAM_CONFIGS.map((t) => (
                   <button
                     key={t.id}
@@ -266,7 +266,10 @@ export function ReportView() {
                     }`}
                   >
                     <span className={`w-2 h-2 rounded-full shrink-0 ${selectedTeam === t.id ? "bg-indigo-400" : "bg-white/20"}`} />
-                    <span className="text-sm text-white/80">{t.label}</span>
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-sm text-white/80">{t.label}</span>
+                      <span className="text-xs text-white/40 truncate">{t.name}</span>
+                    </div>
                   </button>
                 ))}
               </div>

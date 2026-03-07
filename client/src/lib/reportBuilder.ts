@@ -23,10 +23,11 @@ function groupByMonth(rows: CsvRow[], dateCol: string): Map<string, CsvRow[]> {
 }
 
 /** Group rows by a field and count */
-function countBy(rows: CsvRow[], field: string): Map<string, number> {
+function countBy(rows: CsvRow[], field: string, transform?: (val: string) => string): Map<string, number> {
   const map = new Map<string, number>();
   for (const row of rows) {
-    const val = row[field] || "Unknown";
+    const raw = row[field] || "Unknown";
+    const val = transform ? transform(raw) : raw;
     map.set(val, (map.get(val) || 0) + 1);
   }
   return new Map([...map.entries()].sort((a, b) => b[1] - a[1]));
@@ -43,25 +44,49 @@ function sumBy(rows: CsvRow[], groupField: string, sumField: string): Map<string
   return map;
 }
 
+/* ── issue type consolidation ──────────────────────────────── */
+
+/** Map granular JIRA issue types into consolidated report categories */
+const ISSUE_TYPE_GROUPS: Record<string, string> = {
+  initiative: "Planning (Initiative/Epic/Story)",
+  epic: "Planning (Initiative/Epic/Story)",
+  story: "Planning (Initiative/Epic/Story)",
+  task: "Task",
+  "sub-task": "Task",
+  subtask: "Task",
+  bug: "Bug",
+  "test execution bug": "Bug",
+  incident: "Incident",
+  escalation: "Escalation",
+  research: "Research",
+  spike: "Research",
+  documentation: "Documentation",
+  "test execution": "Testing",
+  "sub test execution": "Testing",
+  test: "Testing",
+  "test plan": "Testing",
+};
+
+function consolidateType(raw: string): string {
+  return ISSUE_TYPE_GROUPS[raw.toLowerCase()] || raw;
+}
+
 /* ── issue type system ──────────────────────────────────────── */
 
 const ISSUE_TYPE_COLORS: Record<string, string> = {
-  initiative: "#1e40af",
-  epic: "#7c3aed",
-  story: "#007eb4",
+  "planning (initiative/epic/story)": "#007eb4",
   task: "#0891b2",
   bug: "#dc2626",
-  "sub-task": "#64748b",
-  subtask: "#64748b",
   incident: "#ea580c",
+  escalation: "#f59e0b",
   research: "#059669",
-  "test execution": "#0284c7",
-  spike: "#059669",
+  testing: "#0284c7",
+  documentation: "#64748b",
 };
 
 const ISSUE_TYPE_ORDER: string[] = [
-  "initiative", "epic", "story", "task", "bug", "incident",
-  "research", "spike", "sub-task", "subtask", "test execution",
+  "planning (initiative/epic/story)", "task", "bug", "incident",
+  "escalation", "research", "testing", "documentation",
 ];
 
 function typeColor(issueType: string): string {
@@ -432,7 +457,7 @@ export function buildFullReport(
   results: JiraQueryResult[],
   teamLabel?: string
 ): string {
-  const teamName = teamLabel || "LCSI & LVAIRD";
+  const teamName = teamLabel || "LCSI — Leverton - Customer Solutions Integrations";
   const resultIds = new Set(results.map((r) => r.queryId));
   const missing = REPORT_QUERY_IDS.filter((id) => !resultIds.has(id));
   if (missing.length > 0) {
@@ -588,7 +613,7 @@ export function buildFullReport(
     sprintVelocity.size > 0 ? Math.round(totalPts / sprintVelocity.size) : 0;
 
   // Work type distribution
-  const typeBreakdown = throughput ? countBy(throughput.rows, "Issue Type") : new Map<string, number>();
+  const typeBreakdown = throughput ? countBy(throughput.rows, "Issue Type", consolidateType) : new Map<string, number>();
 
   // Cycle time stats
   const cycleTimeDays: number[] = [];
@@ -1051,7 +1076,7 @@ export function buildFullReport(
 
     ${metric("Rework", `${rework?.issueCount || 0} reopened after Done (${fmt(reworkRate)}%). Items whose status reverted from Done.`, reworkGrade)}
     ${rework && rework.issueCount > 0 ? (() => {
-      const reworkByType = countBy(rework.rows, "Issue Type");
+      const reworkByType = countBy(rework.rows, "Issue Type", consolidateType);
       return typeDistributionBar(reworkByType);
     })() : ""}
 
@@ -1062,7 +1087,7 @@ export function buildFullReport(
 
     ${metric("Work in Progress", `${wipCount} items active.`)}
     ${wip ? (() => {
-      const byType = countBy(wip.rows, "Issue Type");
+      const byType = countBy(wip.rows, "Issue Type", consolidateType);
       return typeDistributionBar(byType);
     })() : ""}
     ${wip ? criticalItemsTable(wip.rows, ["Key", "Summary", "Priority", "Issue Type", "Assignee"]) : ""}
@@ -1117,13 +1142,13 @@ export function buildFullReport(
 
     ${metric("Backlog Readiness", `${readyCount} groomed items ready to pull.`)}
     ${backlog && backlog.issueCount > 0 ? (() => {
-      const byType = countBy(backlog.rows, "Issue Type");
+      const byType = countBy(backlog.rows, "Issue Type", consolidateType);
       return typeDistributionBar(byType);
     })() : '<p style="color:#94a3b8;font-size:11px;">No groomed items without a sprint assignment.</p>'}
 
     ${metric("Discovery & Investigation", `${discovery?.issueCount || 0} open research and idea items.`)}
     ${discovery && discovery.issueCount > 0 ? (() => {
-      const byType = countBy(discovery.rows, "Issue Type");
+      const byType = countBy(discovery.rows, "Issue Type", consolidateType);
       return typeDistributionBar(byType);
     })() : '<p style="color:#94a3b8;font-size:11px;">No open research or idea items found.</p>'}
 

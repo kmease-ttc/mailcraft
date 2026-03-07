@@ -31,16 +31,19 @@ export interface ReportSection {
 export interface TeamConfig {
   id: string;
   label: string;
+  name: string;       // Full project name from JIRA
   projects: string[];  // Jira project keys
 }
 
 export const TEAM_CONFIGS: TeamConfig[] = [
-  { id: "lcsi", label: "LCSI", projects: ["LCSI"] },
-  { id: "lvaird", label: "LVAIRD", projects: ["LVAIRD"] },
-  { id: "rpmt", label: "RPMT", projects: ["RPMT"] },
-  { id: "pxss", label: "PXSS", projects: ["PXSS"] },
-  { id: "checkid", label: "CHECKID", projects: ["CHECKID"] },
-  { id: "ctmpro", label: "CTMPRO", projects: ["CTMPRO"] },
+  { id: "lcsi", label: "LCSI", name: "Leverton - Customer Solutions Integrations", projects: ["LCSI"] },
+  { id: "lvaird", label: "LVAIRD", name: "MRI - AI Research and Data Science", projects: ["LVAIRD"] },
+  { id: "rpmt", label: "RPMT", name: "RentPayment", projects: ["RPMT"] },
+  { id: "pxss", label: "PXSS", name: "Platform X - Secure Sign", projects: ["PXSS"] },
+  { id: "checkid", label: "CHECKID", name: "Checkpoint ID", projects: ["CHECKID"] },
+  { id: "ctmpro", label: "CTMPRO", name: "CTM Pro", projects: ["CTMPRO"] },
+  { id: "grab", label: "GRAB", name: "Box+Dice GRAB", projects: ["GRAB"] },
+  { id: "mrilev", label: "MRILEV", name: "MCI - Product Development", projects: ["MRILEV"] },
 ];
 
 export const DEFAULT_TEAM_ID = "lcsi";
@@ -84,8 +87,18 @@ export function buildSectionsForTeams(teamIds: string[]): ReportSection[] {
   }));
 }
 
-/** Build a display label for multiple teams */
+/** Build a display label for multiple teams (key + project name) */
 export function teamLabel(teamIds: string[]): string {
+  return teamIds
+    .map((id) => {
+      const t = TEAM_CONFIGS.find((c) => c.id === id);
+      return t ? `${t.label} — ${t.name}` : id;
+    })
+    .join(" + ");
+}
+
+/** Short label (key only) for compact UI elements */
+export function teamLabelShort(teamIds: string[]): string {
   return teamIds
     .map((id) => TEAM_CONFIGS.find((t) => t.id === id)?.label || id)
     .join(" + ");
